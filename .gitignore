@@ -4,6 +4,7 @@ playwright-report/
 .pw-saves/
 saves/
 output/
+Screenshot *.png
 
 *.log
 npm-debug.log*
