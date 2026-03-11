@@ -1,14 +1,14 @@
 # Task Board
 
 ## Now
-- Keep unrelated dirty gameplay and realism files isolated from the committed depth chart / snap-share / Game Guide batch
-- Decide whether to clean the remaining local worktree clutter now or park it behind a separate branch/stash
-- Smoke the updated depth-chart flow in any remaining manual QA scenarios if needed
-
-## Next
-- Diagnose and fix `Play` mode from the setup flow end-to-end
 - Profile and reduce setup/main-menu load time, especially setup init and active-session checks
 - Generate abbreviations from randomized city/team names instead of fixed NFL IDs
+- Smoke the updated depth-chart and `Play`-mode startup flows in any remaining manual QA scenarios if needed
+
+## Next
+- Decide whether to restore the parked realism/runtime stash onto a separate branch or continue keeping it isolated
+- Add more targeted startup observability if setup/menu latency is still unclear after the first pass
+- Reconcile the separate Studio repo deployment docs/templates to the direct-Pages model once that repo is safe to edit
 
 ## Later
 - Add deeper runtime/backend rollout docs once production infra exists

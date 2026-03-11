@@ -3005,11 +3005,22 @@ async function loadPlayerTimeline() {
   renderTable("playerTimelineTable", rows);
 }
 
-async function refreshEverything() {
+function syncBootFilters() {
+  document.getElementById("analyticsYearFilter").value = String(state.dashboard?.currentYear || new Date().getFullYear());
+}
+
+async function loadCoreDashboard() {
   await loadState();
   updateStatsControls();
-  document.getElementById("analyticsYearFilter").value = String(state.dashboard?.currentYear || new Date().getFullYear());
-  await Promise.all([
+  syncBootFilters();
+  renderCommandPalette();
+  renderRulesTab();
+  renderAnalyticsChart();
+  renderRealismVerification();
+}
+
+async function loadSecondaryPanels({ background = false } = {}) {
+  const loaders = [
     loadRoster(),
     loadContractsTeam(),
     loadFreeAgency(),
@@ -3035,11 +3046,30 @@ async function refreshEverything() {
     loadPipeline(),
     loadCalibrationJobs(),
     loadSimJobs()
-  ]);
-  renderCommandPalette();
-  renderRulesTab();
-  renderAnalyticsChart();
-  renderRealismVerification();
+  ];
+
+  if (!background) {
+    await Promise.all(loaders);
+    return [];
+  }
+
+  const results = await Promise.allSettled(loaders);
+  const failures = results
+    .map((result, index) => (result.status === "rejected" ? result.reason?.message || `Loader ${index + 1} failed.` : null))
+    .filter(Boolean);
+  if (failures.length) {
+    console.error("Background panel hydration failed:", failures.join(" | "));
+  }
+  return failures;
+}
+
+async function refreshEverything() {
+  await loadCoreDashboard();
+  await loadSecondaryPanels();
+}
+
+function queueStartupHydration() {
+  void loadSecondaryPanels({ background: true });
 }
 
 async function runAction(fn, statusText = "Working...") {
@@ -4055,11 +4085,12 @@ async function init() {
   state.statsHiddenColumns = readStatsHiddenColumns();
   bindEvents();
   activateTab("overviewTab");
-  await refreshEverything();
+  await loadCoreDashboard();
+  setStatus("Ready");
+  queueStartupHydration();
   setInterval(() => {
     loadSimJobs().catch(() => {});
   }, 8000);
-  setStatus("Ready");
 }
 
 init();

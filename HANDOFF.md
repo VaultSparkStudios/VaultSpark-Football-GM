@@ -66,6 +66,7 @@ VaultSpark Football GM
   - multi-week and season sim actions now run one week at a time in the client so they can be paused
   - snapshot export/import buttons are wired in the game shell
   - rules tab and game footer now include a fuller user guide, with the footer guide moved behind a button-driven modal
+  - game-page startup now loads the core dashboard first and hydrates heavier panels in the background so `Play` mode no longer looks hung on entry
 - Generated presentation work:
   - generated teams now use randomized names
   - generated players now carry deterministic physical/body data and `faceSeed`
@@ -150,6 +151,7 @@ VaultSpark Football GM
    - `node --check public/setup.js`
    - `node --test --test-isolation=none test/local-api-runtime.test.js test/session-actions.test.js`
    - `npx.cmd playwright test tests-ui/app.spec.js --reporter=line --workers=1`
+   - `npx.cmd playwright test tests-ui/play-mode-smoke.spec.js --reporter=line --workers=1`
 
 ## Realism Status
 - The earlier realism pass remains intact after the runtime refactor work.
@@ -176,7 +178,6 @@ VaultSpark Football GM
 ## Near-Term Priorities
 1. Finish the immediate UX/runtime batch:
    - generate abbreviations from randomized city/team names instead of fixed NFL IDs
-   - diagnose and fix `Play` mode from the setup flow end-to-end
    - profile and reduce setup/main-menu load time, especially `/api/setup/init` and active-league checks
    - remove remaining raw-ID dependence from roster/admin forms
    - continue polishing draft/scouting presentation and board workflow

@@ -25,11 +25,14 @@ Completed:
 - Replaced the footer-expanded Game Guide with a button-driven guide modal and added Playwright coverage for it
 - Revalidated the gameplay/UI changes with focused runtime, sim, and Playwright test passes
 - Reviewed the dirty worktree after restart, isolated the intended gameplay/UI diff, and committed that subset without staging the unrelated realism/runtime files
+- Parked the unrelated realism/runtime and local artifact files into a named stash so the worktree is clean again
+- Reproduced the reported `Play`-mode startup issue in a browser, traced it to the blocking game-page boot path, and changed startup to hydrate secondary panels in the background after the dashboard is ready
+- Added and passed a dedicated Playwright smoke test for create-league in `Play` mode
 
 Open problems:
-- There are still unrelated dirty gameplay files in the worktree that are intentionally not part of this commit
+- Setup/main-menu initialization still needs profiling and likely additional trimming
 - GitHub Settings -> Pages and optional repo variables cannot be verified from repo files alone
 - A full `npm.cmd test` invocation was not rerun in this shell session, so verification here relies on the focused suites that passed
 
 Recommended next action:
-- Isolate the remaining unrelated worktree changes before the next feature batch, then start the `Play` mode / setup-load investigation
+- Start profiling setup/main-menu initialization, then tackle randomized team abbreviations
