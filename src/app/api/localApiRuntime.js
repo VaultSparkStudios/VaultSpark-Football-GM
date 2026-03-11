@@ -1,5 +1,6 @@
 import { createBrowserSaveStore } from "../../adapters/persistence/browserSaveStore.js";
 import { createPersistenceDescriptor } from "../../adapters/persistence/saveStoreShared.js";
+import { isBackupSlot } from "../../adapters/persistence/saveStoreShared.js";
 import { GameSession } from "../../runtime/GameSession.js";
 import { RNG } from "../../utils/rng.js";
 import { RNGStreams } from "../../utils/rngStreams.js";
@@ -158,12 +159,13 @@ export function createLocalApiRuntime({
     try {
       if (method === "GET" && pathname === "/api/setup/init") {
         const setup = session.getSetupState();
+        const slots = saveStore.listSaveSlots({ includeBackups: true });
         return finish(
           jsonResponse(200, {
             ok: true,
             currentYear,
-            saves: saveStore.listSaveSlots(),
-            backups: saveStore.listBackupSlots(),
+            saves: slots.filter((slot) => !isBackupSlot(slot.slot)),
+            backups: slots.filter((slot) => isBackupSlot(slot.slot)),
             activeLeague: {
               phase: setup.phase,
               currentYear: setup.currentYear,
