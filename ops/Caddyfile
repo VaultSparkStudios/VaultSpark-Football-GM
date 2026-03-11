@@ -1,0 +1,11 @@
+{
+	email __TLS_EMAIL__
+}
+
+play-vaultspark-football-gm.vaultsparkstudios.com {
+	reverse_proxy vaultspark-football-gm-play:8080
+}
+
+api-vaultspark-football-gm.vaultsparkstudios.com {
+	reverse_proxy vaultspark-football-gm-api:8081
+}

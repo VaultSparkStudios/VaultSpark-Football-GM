@@ -15,6 +15,7 @@ import { getPersistenceDescriptor } from "./runtime/persistence.js";
 
 const PORT = Number(process.env.PORT || 4173);
 const PUBLIC_DIR = path.resolve("public");
+const SRC_DIR = path.resolve("src");
 
 let session = createSession();
 const CURRENT_YEAR = new Date().getFullYear();
@@ -118,8 +119,10 @@ function staticContentType(filePath) {
 
 function serveStatic(reqPath, res) {
   const safePath = reqPath === "/" ? "/index.html" : reqPath;
-  const resolved = path.resolve(PUBLIC_DIR, `.${safePath}`);
-  if (!resolved.startsWith(PUBLIC_DIR)) {
+  const baseDir = safePath.startsWith("/src/") ? SRC_DIR : PUBLIC_DIR;
+  const relativePath = safePath.startsWith("/src/") ? safePath.slice("/src".length) : safePath;
+  const resolved = path.resolve(baseDir, `.${relativePath}`);
+  if (!resolved.startsWith(baseDir)) {
     sendText(res, 403, "Forbidden");
     return;
   }
@@ -178,20 +181,23 @@ function createSimulationJob(totalSeasons) {
 
 async function handleApi(req, res, url) {
   if (req.method === "GET" && url.pathname === "/api/setup/init") {
-    const dashboard = session.getDashboardState();
+    const setup = session.getSetupState();
     sendJson(res, 200, {
       ok: true,
       currentYear: CURRENT_YEAR,
       saves: listSaveSlots(),
       backups: listBackupSlots(),
       activeLeague: {
-        phase: session.phase,
-        currentYear: session.currentYear,
-        currentWeek: session.currentWeek,
-        seasonsSimulated: session.seasonsSimulated,
-        controlledTeamId: session.controlledTeamId
+        phase: setup.phase,
+        currentYear: setup.currentYear,
+        currentWeek: setup.currentWeek,
+        seasonsSimulated: setup.seasonsSimulated,
+        mode: setup.mode,
+        controlledTeamId: setup.controlledTeamId,
+        controlledTeamName: setup.controlledTeamName,
+        controlledTeamAbbrev: setup.controlledTeamAbbrev
       },
-      teams: dashboard.teams
+      teams: setup.teams
     });
     return true;
   }
@@ -616,6 +622,24 @@ async function handleApi(req, res, url) {
     return true;
   }
 
+  if (req.method === "GET" && url.pathname === "/api/boxscores") {
+    const teamId = (url.searchParams.get("team") || session.controlledTeamId).toUpperCase();
+    const limit = Math.max(1, Math.min(20, toInt(url.searchParams.get("limit")) || 8));
+    sendJson(res, 200, { ok: true, games: session.getRecentBoxScores(teamId, limit) });
+    return true;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/boxscore") {
+    const gameId = url.searchParams.get("gameId");
+    if (!gameId) {
+      sendJson(res, 400, { ok: false, error: "gameId is required." });
+      return true;
+    }
+    const boxScore = session.getBoxScore(gameId);
+    sendJson(res, boxScore ? 200 : 404, boxScore ? { ok: true, boxScore } : { ok: false, error: "Game not found." });
+    return true;
+  }
+
   if (req.method === "GET" && url.pathname === "/api/calendar") {
     const year = toInt(url.searchParams.get("year")) || session.currentYear;
     sendJson(res, 200, { ok: true, calendar: session.getSeasonCalendar(year) });
@@ -628,7 +652,8 @@ async function handleApi(req, res, url) {
       sendJson(res, 400, { ok: false, error: "playerId required." });
       return true;
     }
-    const profile = session.getPlayerProfile(String(playerId));
+    const seasonType = url.searchParams.get("seasonType") || "regular";
+    const profile = session.getPlayerProfile(String(playerId), { seasonType });
     if (!profile) {
       sendJson(res, 404, { ok: false, error: "Player not found." });
       return true;
@@ -726,11 +751,8 @@ async function handleApi(req, res, url) {
     const year = toInt(url.searchParams.get("year"));
     const position = url.searchParams.get("position");
     const team = url.searchParams.get("team");
-    const rows = session.getTables({
-      table: "playerSeason",
-      category,
-      filters: { year, position, team }
-    });
+    const seasonType = url.searchParams.get("seasonType") || "regular";
+    const rows = session.getTables({ table: "playerSeason", category, filters: { year, position, team, seasonType } });
     sendJson(res, 200, { ok: true, category, rows });
     return true;
   }
@@ -739,11 +761,8 @@ async function handleApi(req, res, url) {
     const category = url.searchParams.get("category") || "passing";
     const position = url.searchParams.get("position");
     const team = url.searchParams.get("team");
-    const rows = session.getTables({
-      table: "playerCareer",
-      category,
-      filters: { position, team }
-    });
+    const seasonType = url.searchParams.get("seasonType") || "regular";
+    const rows = session.getTables({ table: "playerCareer", category, filters: { position, team, seasonType } });
     sendJson(res, 200, { ok: true, category, rows });
     return true;
   }
@@ -1016,7 +1035,8 @@ async function handleApi(req, res, url) {
       sendJson(res, 400, { ok: false, error: "playerId required." });
       return true;
     }
-    const timeline = session.getPlayerTimeline(String(playerId));
+    const seasonType = url.searchParams.get("seasonType") || "regular";
+    const timeline = session.getPlayerTimeline(String(playerId), { seasonType });
     if (!timeline) {
       sendJson(res, 404, { ok: false, error: "Player not found." });
       return true;
@@ -1027,6 +1047,27 @@ async function handleApi(req, res, url) {
 
   if (req.method === "GET" && url.pathname === "/api/saves") {
     sendJson(res, 200, { ok: true, slots: listSaveSlots() });
+    return true;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/snapshot/export") {
+    sendJson(res, 200, {
+      ok: true,
+      snapshot: session.toSnapshot(),
+      fileName: `vsfgm-${session.currentYear}-w${session.currentWeek}-${session.controlledTeamId}.json`
+    });
+    return true;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/snapshot/import") {
+    const body = parseJsonBody(await readRequestBody(req));
+    if (!body || !body.snapshot || typeof body.snapshot !== "object") {
+      sendJson(res, 400, { ok: false, error: "snapshot object is required." });
+      return true;
+    }
+    session = createSessionFromSnapshot(body.snapshot);
+    writeAutoBackup("snapshot-import");
+    sendJson(res, 200, { ok: true, state: session.getDashboardState() });
     return true;
   }
 

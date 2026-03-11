@@ -3,19 +3,28 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="vsfgm-runtime-default" content="server" />
     <title>VaultSpark Football GM - Franchise</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body class="game-body">
     <div class="bg-layer"></div>
     <header class="game-topbar">
-      <div>
+      <div class="topbar-brand">
         <h1>VaultSpark Football GM</h1>
         <p id="topMetaText" class="small">Loading...</p>
       </div>
-      <div class="row compact">
-        <button id="commandPaletteBtn" title="Ctrl/Cmd+K">Command</button>
-        <button id="backSetupBtn" data-testid="back-setup-btn">Season Setup</button>
+      <div class="topbar-center">
+        <div class="small">User Team Box Scores</div>
+        <div id="boxScoreTicker" class="boxscore-ticker">Loading recent games...</div>
+      </div>
+      <div class="row compact topbar-actions">
+        <span id="stageChip" class="chip">Stage: Loading...</span>
+        <button id="advanceWeekBtn" data-testid="advance-week-btn">Advance Week</button>
+        <button id="advance4WeeksBtn" data-testid="advance-4-weeks-btn">Advance 4 Weeks</button>
+        <button id="advanceSeasonBtn" data-testid="advance-season-btn">Advance Season</button>
+        <button id="pauseSimBtn" disabled>Pause Sim</button>
+        <button id="backSetupBtn" data-testid="back-setup-btn">Main Menu</button>
         <span id="statusChip" data-testid="status-chip" class="chip">Loading...</span>
       </div>
     </header>
@@ -23,8 +32,12 @@
     <main class="game-shell">
       <aside class="side-menu">
         <button class="menu-btn active" data-tab="overviewTab" data-testid="tab-overview">Overview</button>
-        <button class="menu-btn" data-tab="rosterTab" data-testid="tab-roster">Roster & FA</button>
+        <button class="menu-btn" data-tab="rosterTab" data-testid="tab-roster">Roster</button>
+        <button class="menu-btn" data-tab="faTab" data-testid="tab-fa">Free Agents</button>
+        <button class="menu-btn" data-tab="depthTab" data-testid="tab-depth">Depth Chart</button>
         <button class="menu-btn" data-tab="transactionsTab" data-testid="tab-transactions">Transactions</button>
+        <button class="menu-btn" data-tab="contractsTab" data-testid="tab-contracts">Contracts</button>
+        <button class="menu-btn" data-tab="scoutingTab" data-testid="tab-scouting">Scouting</button>
         <button class="menu-btn" data-tab="draftTab" data-testid="tab-draft">Draft</button>
         <button class="menu-btn" data-tab="statsTab" data-testid="tab-stats">Statistics</button>
         <button class="menu-btn" data-tab="calendarTab" data-testid="tab-calendar">Calendar</button>
@@ -42,9 +55,6 @@
               <label>Controlled Team
                 <select id="teamSelect" data-testid="team-select"></select>
               </label>
-              <button id="advanceWeekBtn" data-testid="advance-week-btn">Advance Week</button>
-              <button id="advance4WeeksBtn" data-testid="advance-4-weeks-btn">Advance 4 Weeks</button>
-              <button id="advanceSeasonBtn" data-testid="advance-season-btn">Advance Season</button>
               <button id="refreshBtn" data-testid="refresh-btn">Refresh</button>
             </div>
           </div>
@@ -126,68 +136,93 @@
         </section>
 
         <section id="rosterTab" class="tab-panel">
-          <div class="panel split">
-            <div>
-              <h2>Roster</h2>
-              <div class="row">
-                <label>Team <select id="rosterTeamSelect"></select></label>
-                <button id="loadRosterBtn" data-testid="load-roster-btn">Load Roster</button>
-              </div>
-              <div class="row">
-                <label>Pos
-                  <select id="rosterPosFilter">
-                    <option value="">ALL</option>
-                    <option>QB</option><option>RB</option><option>WR</option><option>TE</option><option>OL</option>
-                    <option>DL</option><option>LB</option><option>DB</option><option>K</option><option>P</option>
-                  </select>
-                </label>
-                <label>Min OVR <input id="rosterMinOverallFilter" type="number" min="0" max="99" /></label>
-                <label>Min Age <input id="rosterMinAgeFilter" type="number" min="18" max="45" /></label>
-                <label>Max Age <input id="rosterMaxAgeFilter" type="number" min="18" max="45" /></label>
-              </div>
-              <div class="row">
-                <label>Player ID <input id="designationPlayerId" type="text" /></label>
-                <label>Designation
-                  <select id="designationType">
-                    <option value="gameDayInactive">Game-Day Inactive</option>
-                    <option value="ir">IR</option>
-                    <option value="pup">PUP</option>
-                    <option value="nfi">NFI</option>
-                  </select>
-                </label>
-                <button id="applyDesignationBtn">Apply Designation</button>
-                <button id="clearDesignationBtn" class="warn">Clear Designation</button>
-              </div>
-              <div class="table-wrap"><table id="rosterTable" data-testid="roster-table"></table></div>
-              <h3>Roster Board (Depth Order)</h3>
-              <div class="row compact">
-                <label>Board Player ID <input id="boardPlayerId" type="text" /></label>
-                <button id="boardMoveUpBtn">Move Up</button>
-                <button id="boardMoveDownBtn">Move Down</button>
-              </div>
-              <div class="table-wrap"><table id="rosterBoardTable"></table></div>
+          <div class="panel">
+            <h2>Roster</h2>
+            <div class="row">
+              <label>Team <select id="rosterTeamSelect"></select></label>
+              <button id="loadRosterBtn" data-testid="load-roster-btn">Load Roster</button>
             </div>
-            <div>
-              <h2>Free Agents / Waivers</h2>
-              <div class="row">
-                <label>Position
-                  <select id="faPositionFilter">
-                    <option value="">ALL</option>
-                    <option>QB</option><option>RB</option><option>WR</option><option>TE</option><option>OL</option>
-                    <option>DL</option><option>LB</option><option>DB</option><option>K</option><option>P</option>
-                  </select>
-                </label>
-                <button id="loadFaBtn" data-testid="load-fa-btn">Load Pool</button>
-              </div>
-              <div class="row compact">
-                <label>Min OVR <input id="faMinOverallFilter" type="number" min="0" max="99" /></label>
-                <label>Min Age <input id="faMinAgeFilter" type="number" min="18" max="45" /></label>
-                <label>Max Age <input id="faMaxAgeFilter" type="number" min="18" max="45" /></label>
-              </div>
-              <div class="table-wrap"><table id="faTable" data-testid="fa-table"></table></div>
-              <h3>Waiver Wire</h3>
-              <div class="table-wrap"><table id="waiverTable" data-testid="waiver-table"></table></div>
+            <div class="row">
+              <label>Pos
+                <select id="rosterPosFilter">
+                  <option value="">ALL</option>
+                  <option>QB</option><option>RB</option><option>WR</option><option>TE</option><option>OL</option>
+                  <option>DL</option><option>LB</option><option>DB</option><option>K</option><option>P</option>
+                </select>
+              </label>
+              <label>Min OVR <input id="rosterMinOverallFilter" type="number" min="0" max="99" /></label>
+              <label>Min Age <input id="rosterMinAgeFilter" type="number" min="18" max="45" /></label>
+              <label>Max Age <input id="rosterMaxAgeFilter" type="number" min="18" max="45" /></label>
             </div>
+            <div class="row">
+              <label>Player ID <input id="designationPlayerId" type="text" /></label>
+              <label>Designation
+                <select id="designationType">
+                  <option value="gameDayInactive">Game-Day Inactive</option>
+                  <option value="ir">IR</option>
+                  <option value="pup">PUP</option>
+                  <option value="nfi">NFI</option>
+                </select>
+              </label>
+              <button id="applyDesignationBtn">Apply Designation</button>
+              <button id="clearDesignationBtn" class="warn">Clear Designation</button>
+            </div>
+            <div class="table-wrap"><table id="rosterTable" data-testid="roster-table"></table></div>
+            <h3>Roster Board (Depth Order)</h3>
+            <div class="row compact">
+              <label>Board Player ID <input id="boardPlayerId" type="text" /></label>
+              <button id="boardMoveUpBtn">Move Up</button>
+              <button id="boardMoveDownBtn">Move Down</button>
+            </div>
+            <div class="table-wrap"><table id="rosterBoardTable"></table></div>
+          </div>
+        </section>
+
+        <section id="faTab" class="tab-panel">
+          <div class="panel">
+            <h2>Free Agents</h2>
+            <div class="row">
+              <label>Position
+                <select id="faPositionFilter">
+                  <option value="">ALL</option>
+                  <option>QB</option><option>RB</option><option>WR</option><option>TE</option><option>OL</option>
+                  <option>DL</option><option>LB</option><option>DB</option><option>K</option><option>P</option>
+                </select>
+              </label>
+              <button id="loadFaBtn" data-testid="load-fa-btn">Load Pool</button>
+            </div>
+            <div class="row compact">
+              <label>Min OVR <input id="faMinOverallFilter" type="number" min="0" max="99" /></label>
+              <label>Min Age <input id="faMinAgeFilter" type="number" min="18" max="45" /></label>
+              <label>Max Age <input id="faMaxAgeFilter" type="number" min="18" max="45" /></label>
+            </div>
+            <div class="table-wrap"><table id="faTable" data-testid="fa-table"></table></div>
+          </div>
+          <div class="panel">
+            <h2>Waiver Wire</h2>
+            <div class="table-wrap"><table id="waiverTable" data-testid="waiver-table"></table></div>
+          </div>
+        </section>
+
+        <section id="depthTab" class="tab-panel">
+          <div class="panel">
+            <h2>Depth Chart</h2>
+            <div class="row">
+              <label>Team <select id="depthTeamSelect"></select></label>
+              <label>Position
+                <select id="depthPositionSelect">
+                  <option>QB</option><option>RB</option><option>WR</option><option>TE</option><option>OL</option>
+                  <option>DL</option><option>LB</option><option>DB</option><option>K</option><option>P</option>
+                </select>
+              </label>
+              <button id="loadDepthBtn" data-testid="load-depth-btn">Load Depth</button>
+            </div>
+            <div class="row">
+              <span id="depthStatusText" class="chip">Use move controls to change playing-time order</span>
+              <button id="saveDepthBtn" data-testid="save-depth-btn">Save Depth Chart</button>
+            </div>
+            <div class="small">Top rows receive the highest modeled snap share for the selected position.</div>
+            <div class="table-wrap"><table id="depthTable" data-testid="depth-table"></table></div>
           </div>
         </section>
 
@@ -233,67 +268,6 @@
           </div>
 
           <div class="panel">
-            <h2>Contracts</h2>
-            <div class="row">
-              <label>Re-sign Player ID <input id="resignPlayerId" type="text" /></label>
-              <label>Years <input id="resignYears" type="number" value="3" /></label>
-              <button id="resignBtn" data-testid="resign-btn">Re-sign</button>
-            </div>
-            <div class="row">
-              <label>Restructure Player ID <input id="restructurePlayerId" type="text" /></label>
-              <button id="restructureBtn" data-testid="restructure-btn">Restructure</button>
-            </div>
-            <div class="row">
-              <label>Franchise Tag Player ID <input id="tagPlayerId" type="text" /></label>
-              <button id="franchiseTagBtn" data-testid="franchise-tag-btn">Apply Tag</button>
-            </div>
-            <div class="row">
-              <label>5th-Year Option Player ID <input id="optionPlayerId" type="text" /></label>
-              <button id="fifthOptionBtn" data-testid="fifth-option-btn">Exercise Option</button>
-            </div>
-            <div class="row">
-              <label>Negotiate Player ID <input id="negotiatePlayerId" type="text" /></label>
-              <label>Years <input id="negotiateYears" type="number" value="3" /></label>
-              <label>Salary <input id="negotiateSalary" type="number" placeholder="optional" /></label>
-              <button id="negotiateBtn">Negotiate & Sign</button>
-            </div>
-            <div class="table-wrap"><table id="negotiationTable"></table></div>
-            <div id="contractPreviewText" class="small">Select an eligible player to preview cap impact.</div>
-            <div class="split">
-              <div>
-                <h3>Tag Eligible</h3>
-                <div class="table-wrap"><table id="tagEligibleTable" data-testid="tag-eligible-table"></table></div>
-              </div>
-              <div>
-                <h3>Option Eligible</h3>
-                <div class="table-wrap"><table id="optionEligibleTable" data-testid="option-eligible-table"></table></div>
-              </div>
-            </div>
-            <div class="table-wrap"><table id="expiringTable" data-testid="expiring-table"></table></div>
-          </div>
-
-          <div class="panel">
-            <h2>Depth Chart</h2>
-            <div class="row">
-              <label>Team <select id="depthTeamSelect"></select></label>
-              <label>Position
-                <select id="depthPositionSelect">
-                  <option>QB</option><option>RB</option><option>WR</option><option>TE</option><option>OL</option>
-                  <option>DL</option><option>LB</option><option>DB</option><option>K</option><option>P</option>
-                </select>
-              </label>
-              <button id="loadDepthBtn" data-testid="load-depth-btn">Load Depth</button>
-            </div>
-            <div class="row">
-              <label>Ordered Player IDs
-                <input id="depthIdsInput" type="text" placeholder="comma-separated IDs" />
-              </label>
-              <button id="saveDepthBtn" data-testid="save-depth-btn">Save Depth Chart</button>
-            </div>
-            <div class="table-wrap"><table id="depthTable" data-testid="depth-table"></table></div>
-          </div>
-
-          <div class="panel">
             <h2>Retirement Overrides</h2>
             <div class="row">
               <label>Position
@@ -320,20 +294,77 @@
           </div>
         </section>
 
-        <section id="draftTab" class="tab-panel">
+        <section id="contractsTab" class="tab-panel">
           <div class="panel">
-            <h2>Draft Room</h2>
+            <h2>Contracts</h2>
             <div class="row">
-              <button id="prepareDraftBtn" data-testid="prepare-draft-btn">Prepare Draft</button>
-              <button id="cpuDraftBtn" data-testid="cpu-draft-btn">CPU Until User Pick</button>
-              <button id="cpuDraftAllBtn" data-testid="cpu-draft-all-btn">CPU Finish Draft</button>
+              <label>Team <select id="contractsTeamSelect"></select></label>
+              <button id="loadContractsBtn">Load Contracts</button>
+              <span id="contractsSelectedPlayerText" class="chip">Selected: None</span>
             </div>
-            <div class="row">
-              <label>User Pick Player ID <input id="userPickPlayerId" type="text" /></label>
-              <button id="userPickBtn" data-testid="user-pick-btn">Make Pick</button>
+            <div class="cards">
+              <article><h3>Cap Space</h3><p id="contractsCapSpaceCard">-</p></article>
+              <article><h3>Active Cap</h3><p id="contractsActiveCapCard">-</p></article>
+              <article><h3>Dead Cap</h3><p id="contractsDeadCapCard">-</p></article>
+              <article><h3>Avg Salary</h3><p id="contractsAvgSalaryCard">-</p></article>
+              <article><h3>Avg Years Left</h3><p id="contractsAvgYearsCard">-</p></article>
+              <article><h3>Trade Block</h3><p id="contractsTradeBlockCard">-</p></article>
             </div>
-            <div class="table-wrap"><table id="draftTable" data-testid="draft-table"></table></div>
+            <div class="small" id="contractPreviewText">Select a player row to stage a contract action or queue a trade package.</div>
           </div>
+
+          <div class="panel">
+            <h2>Contract Actions</h2>
+            <div class="row">
+              <label>Years <input id="contractYearsInput" type="number" value="3" min="1" max="5" /></label>
+              <label>Salary <input id="contractSalaryInput" type="number" placeholder="optional" /></label>
+              <button id="contractsResignBtn" data-testid="resign-btn">Re-sign</button>
+              <button id="contractsNegotiateBtn">Negotiate</button>
+              <button id="contractsRestructureBtn" data-testid="restructure-btn">Restructure</button>
+            </div>
+            <div class="row">
+              <button id="franchiseTagBtn" data-testid="franchise-tag-btn">Apply Tag</button>
+              <button id="fifthOptionBtn" data-testid="fifth-option-btn">Exercise Option</button>
+              <button id="contractsTradeBtn">Trade Player</button>
+              <button id="contractsTradeBlockBtn">Toggle Trade Block</button>
+            </div>
+            <div id="contractActionText" class="small">Negotiations can now be accepted, rejected, or countered and affect morale/motivation.</div>
+          </div>
+
+          <div class="panel">
+            <h2>Team Contract Board</h2>
+            <div class="table-wrap"><table id="contractsRosterTable"></table></div>
+          </div>
+
+          <div class="panel split">
+            <div>
+              <h2>Negotiation Targets</h2>
+              <div class="table-wrap"><table id="negotiationTable"></table></div>
+            </div>
+            <div>
+              <h2>Trade Block</h2>
+              <div class="table-wrap"><table id="tradeBlockTable"></table></div>
+            </div>
+          </div>
+
+          <div class="panel split">
+            <div>
+              <h3>Tag Eligible</h3>
+              <div class="table-wrap"><table id="tagEligibleTable" data-testid="tag-eligible-table"></table></div>
+            </div>
+            <div>
+              <h3>Option Eligible</h3>
+              <div class="table-wrap"><table id="optionEligibleTable" data-testid="option-eligible-table"></table></div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h2>Expiring Contracts</h2>
+            <div class="table-wrap"><table id="expiringTable" data-testid="expiring-table"></table></div>
+          </div>
+        </section>
+
+        <section id="scoutingTab" class="tab-panel">
           <div class="panel">
             <h2>Scouting</h2>
             <div class="row">
@@ -342,17 +373,40 @@
               <span id="scoutingLockText" class="chip">Board: Unlocked</span>
             </div>
             <div class="row">
-              <label>Prospect ID <input id="scoutPlayerId" type="text" /></label>
               <label>Points <input id="scoutPointsInput" type="number" value="10" /></label>
-              <button id="allocateScoutingBtn" data-testid="allocate-scouting-btn">Scout Prospect</button>
-            </div>
-            <div class="row">
-              <label>Lock Board IDs <input id="lockBoardIdsInput" type="text" placeholder="comma-separated IDs" /></label>
+              <span id="scoutingBoardText" class="chip">Board: 0 / 20</span>
               <button id="lockBoardBtn" data-testid="lock-board-btn">Lock Board</button>
             </div>
+            <div class="small">Use the table buttons to scout prospects and build a top-20 board without typing raw IDs.</div>
             <div class="table-wrap"><table id="scoutingTable" data-testid="scouting-table"></table></div>
             <h3>Weekly Scouting Report</h3>
             <div class="table-wrap"><table id="scoutingReportTable" data-testid="scouting-report-table"></table></div>
+          </div>
+        </section>
+
+        <section id="draftTab" class="tab-panel">
+          <div class="panel">
+            <h2>Draft Room</h2>
+            <div class="row">
+              <button id="prepareDraftBtn" data-testid="prepare-draft-btn">Prepare Draft</button>
+              <button id="cpuDraftOneBtn">Sim One Pick</button>
+              <button id="cpuDraftBtn" data-testid="cpu-draft-btn">CPU Until User Pick</button>
+              <button id="cpuDraftAllBtn" data-testid="cpu-draft-all-btn">CPU Finish Draft</button>
+            </div>
+            <div class="row">
+              <span id="draftStatusText" class="chip">No active draft</span>
+              <span id="draftSelectedText" class="chip">Selected Prospect: None</span>
+              <button id="userPickBtn" data-testid="user-pick-btn">Draft Selected Prospect</button>
+            </div>
+            <div class="cards">
+              <article><h3>Stage</h3><p id="draftStageText">-</p></article>
+              <article><h3>On The Clock</h3><p id="draftOnClockText">-</p></article>
+              <article><h3>User Window</h3><p id="draftUserWindowText">-</p></article>
+            </div>
+            <h3>Recent Selections</h3>
+            <div class="table-wrap"><table id="draftTable" data-testid="draft-table"></table></div>
+            <h3>Available Prospects</h3>
+            <div class="table-wrap"><table id="draftAvailableTable"></table></div>
           </div>
         </section>
 
@@ -392,8 +446,21 @@
             </div>
             <div class="row compact">
               <label><input id="statsVirtualizedToggle" type="checkbox" checked /> Virtualized Table</label>
+              <label>Season Type
+                <select id="statsSeasonTypeFilter">
+                  <option value="regular">Regular Season</option>
+                  <option value="playoffs">Playoffs</option>
+                  <option value="all">Combined</option>
+                </select>
+              </label>
               <label>Compare Player IDs <input id="comparePlayerIdsInput" type="text" placeholder="id1,id2" /></label>
               <button id="comparePlayersBtn">Compare Players</button>
+            </div>
+            <div class="row compact">
+              <details>
+                <summary>Column Visibility</summary>
+                <div id="statsColumnFilters" class="row compact"></div>
+              </details>
             </div>
             <div class="row">
               <button id="prevStatsPageBtn">Prev</button>
@@ -523,6 +590,10 @@
             <h2>Buttons & Features</h2>
             <div class="table-wrap"><table id="rulesActionsTable"></table></div>
           </div>
+          <div class="panel">
+            <h2>How To Play</h2>
+            <div id="rulesGuideContent" class="stack small"></div>
+          </div>
         </section>
 
         <section id="settingsTab" class="tab-panel">
@@ -533,6 +604,9 @@
               <button id="saveBtn" data-testid="save-btn">Save</button>
               <button id="loadBtn" data-testid="load-btn">Load</button>
               <button id="deleteSaveBtn" data-testid="delete-save-btn" class="warn">Delete</button>
+              <button id="exportSnapshotBtn">Export Snapshot</button>
+              <button id="importSnapshotBtn">Import Snapshot</button>
+              <input id="snapshotImportInput" type="file" accept="application/json" hidden />
             </div>
             <div class="row small" id="saveListText"></div>
             <div class="row">
@@ -639,6 +713,13 @@
       </section>
     </main>
 
+    <footer class="game-footer">
+      <div class="panel">
+        <h2>Game Guide</h2>
+        <div id="guideFooterContent" class="stack small"></div>
+      </div>
+    </footer>
+
     <div id="playerModal" data-testid="player-modal" class="modal hidden">
       <div class="modal-card">
         <div class="row compact">
@@ -646,6 +727,18 @@
           <button id="closePlayerModalBtn" data-testid="close-player-modal-btn" class="warn">Close</button>
         </div>
         <div id="playerModalMeta" class="small"></div>
+        <div class="row compact">
+          <label>Season Type
+            <select id="playerSeasonTypeFilter">
+              <option value="regular">Regular Season</option>
+              <option value="playoffs">Playoffs</option>
+              <option value="all">Combined</option>
+            </select>
+          </label>
+        </div>
+        <div class="panel">
+          <div id="playerProfileSummary" class="stack"></div>
+        </div>
         <div class="split">
           <div>
             <h3>Ratings</h3>
@@ -654,14 +747,66 @@
             <div class="table-wrap"><table id="playerContractTable"></table></div>
           </div>
           <div>
-            <h3>Career Totals</h3>
+            <h3>Career Summary</h3>
             <div class="table-wrap"><table id="playerCareerTable"></table></div>
-            <h3>Recent Seasons</h3>
+            <h3>Season By Season</h3>
             <div class="table-wrap"><table id="playerSeasonTable"></table></div>
+          </div>
+        </div>
+        <div class="split">
+          <div>
+            <h3>Team Splits / Championships</h3>
+            <div class="table-wrap"><table id="playerTeamSplitTable"></table></div>
+          </div>
+          <div>
+            <h3>Awards / Notes</h3>
+            <div class="table-wrap"><table id="playerAccoladesTable"></table></div>
           </div>
         </div>
         <h3>Recent Transactions</h3>
         <div class="table-wrap"><table id="playerTxTable"></table></div>
+      </div>
+    </div>
+
+    <div id="boxScoreModal" class="modal hidden">
+      <div class="modal-card">
+        <div class="row" style="justify-content: space-between">
+          <div>
+            <h2 id="boxScoreModalTitle">Box Score</h2>
+            <p id="boxScoreModalMeta" class="small"></p>
+          </div>
+          <button id="closeBoxScoreModalBtn" class="warn">Close</button>
+        </div>
+        <div class="panel">
+          <h3>Team Stats</h3>
+          <div class="table-wrap"><table id="boxScoreTeamStatsTable"></table></div>
+        </div>
+        <div class="panel">
+          <h3>Scoring Summary</h3>
+          <div class="table-wrap"><table id="boxScoreScoringTable"></table></div>
+        </div>
+        <div class="panel">
+          <h3>Play By Play</h3>
+          <div class="table-wrap"><table id="boxScorePlayTable"></table></div>
+        </div>
+        <div class="panel split">
+          <div>
+            <h3 id="boxScoreAwayTitle">Away Player Stats</h3>
+            <div class="table-wrap"><table id="boxScoreAwayPassingTable"></table></div>
+            <div class="table-wrap"><table id="boxScoreAwayRushingTable"></table></div>
+            <div class="table-wrap"><table id="boxScoreAwayReceivingTable"></table></div>
+            <div class="table-wrap"><table id="boxScoreAwayDefenseTable"></table></div>
+            <div class="table-wrap"><table id="boxScoreAwayKickingTable"></table></div>
+          </div>
+          <div>
+            <h3 id="boxScoreHomeTitle">Home Player Stats</h3>
+            <div class="table-wrap"><table id="boxScoreHomePassingTable"></table></div>
+            <div class="table-wrap"><table id="boxScoreHomeRushingTable"></table></div>
+            <div class="table-wrap"><table id="boxScoreHomeReceivingTable"></table></div>
+            <div class="table-wrap"><table id="boxScoreHomeDefenseTable"></table></div>
+            <div class="table-wrap"><table id="boxScoreHomeKickingTable"></table></div>
+          </div>
+        </div>
       </div>
     </div>
 

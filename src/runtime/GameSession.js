@@ -16,9 +16,10 @@ import {
   normalizeContract,
   restructureContract
 } from "../domain/contracts.js";
-import { createDraftClass } from "../domain/playerFactory.js";
+import { createDraftClass, createZeroedSeasonStats } from "../domain/playerFactory.js";
 import {
   createLeagueBase,
+  ensureTeamIdentity,
   getAllTeamPlayers,
   initializeLeagueRoster,
   recalculateAllTeamRatings,
@@ -84,6 +85,11 @@ function normalizeCount(value, min, max, fallback) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return fallback;
   return Math.max(min, Math.min(max, Math.floor(parsed)));
+}
+
+function normalizeSeasonType(value, fallback = "regular") {
+  if (value === "regular" || value === "playoffs" || value === "all") return value;
+  return fallback;
 }
 
 function teamById(league, teamId) {
@@ -343,6 +349,7 @@ function ensurePlayerRuntime(player, rng = null) {
   if (!player.rosterSlot) player.rosterSlot = "active";
   if (!Number.isFinite(player.depthChartOrder)) player.depthChartOrder = 99;
   if (!Number.isFinite(player.morale)) player.morale = rng ? rng.int(58, 86) : 72;
+  if (!Number.isFinite(player.motivation)) player.motivation = rng ? rng.int(56, 88) : 72;
   if (!player.injury) player.injury = null;
   if (!Number.isFinite(player.reinjuryRisk)) player.reinjuryRisk = 0;
   if (!Number.isFinite(player.suspensionWeeks)) player.suspensionWeeks = 0;
@@ -380,6 +387,7 @@ function ensurePlayerRuntime(player, rng = null) {
 
 function ensureLeagueRuntime(league) {
   if (!league.weeklyHistory) league.weeklyHistory = [];
+  if (!Array.isArray(league.gameArchive)) league.gameArchive = [];
   if (!league.awards) league.awards = [];
   if (!league.capLedger) league.capLedger = {};
   if (!league.teamCapOverride) league.teamCapOverride = {};
@@ -419,12 +427,38 @@ function ensureLeagueRuntime(league) {
     ...league.settings
   };
   for (const team of league.teams) {
+    Object.assign(team, ensureTeamIdentity(team));
     if (!team.staff) team.staff = buildStaffProfile({ int: () => 76 }, team.staff);
     if (!team.strategyProfile) team.strategyProfile = "balanced";
     if (!team.owner) team.owner = buildOwnerProfile({ int: () => 76, float: () => 1, chance: () => false }, team.owner);
     if (!Number.isFinite(team.chemistry)) team.chemistry = 70;
     applyStaffToCoaching(team);
   }
+}
+
+function toTeamIdentity(team) {
+  return {
+    id: team.id,
+    abbrev: team.abbrev || team.id,
+    name: team.name,
+    city: team.city || null,
+    nickname: team.nickname || null,
+    conference: team.conference,
+    division: team.division
+  };
+}
+
+function toDashboardTeam(team) {
+  return {
+    ...toTeamIdentity(team),
+    overallRating: team.overallRating,
+    coaching: team.coaching,
+    scheme: team.scheme,
+    strategyProfile: team.strategyProfile || "balanced",
+    staff: team.staff || null,
+    chemistry: team.chemistry || 70,
+    owner: team.owner || null
+  };
 }
 
 function ensureDepthCharts(league) {
@@ -524,8 +558,8 @@ export class GameSession {
     mode = "drive",
     importedPlayers = [],
     controlledTeamId = "BUF",
-    realismProfilePath = null,
-    careerRealismProfilePath = null
+    realismProfile = null,
+    careerRealismProfile = null
   }) {
     this.rng = rng;
     this.rngStreams = rngStreams || new RNGStreams(this.rng.seed, this.rng.constructor);
@@ -537,10 +571,10 @@ export class GameSession {
     this.previousDivisionRanks = null;
     this.lastCalibrationReport = null;
     this.lastRealismVerificationReport = null;
-    this.realismProfile = loadRealismProfile(realismProfilePath);
-    this.careerRealismProfile = loadCareerRealismProfile(careerRealismProfilePath);
+    this.realismProfile = realismProfile || loadRealismProfile();
+    this.careerRealismProfile = careerRealismProfile || loadCareerRealismProfile();
 
-    this.league = createLeagueBase(startYear);
+    this.league = createLeagueBase(startYear, this.rng);
     initializeLeagueRoster({ league: this.league, importedPlayers, rng: this.rng });
     ensureLeagueRuntime(this.league);
     this.initializeLeagueSystems();
@@ -573,8 +607,8 @@ export class GameSession {
     session.modules = createSessionModules(session);
     session.statBook = new StatBook(session.league);
     session.statBook.teamSeasonArchive = snapshot.teamSeasonArchive || [];
-    session.realismProfile = snapshot.realismProfile || loadRealismProfile(null);
-    session.careerRealismProfile = snapshot.careerRealismProfile || loadCareerRealismProfile(null);
+    session.realismProfile = snapshot.realismProfile || loadRealismProfile();
+    session.careerRealismProfile = snapshot.careerRealismProfile || loadCareerRealismProfile();
     session.lastRealismVerificationReport = snapshot.lastRealismVerificationReport || null;
     session.statBook.reindexPlayers();
     ensureLeagueRuntime(session.league);
@@ -585,6 +619,7 @@ export class GameSession {
   }
 
   toSnapshot() {
+    const controlledTeam = this.getControlledTeam();
     return {
       schemaVersion: LATEST_SNAPSHOT_SCHEMA_VERSION,
       rngSeed: this.rng.seed,
@@ -600,6 +635,8 @@ export class GameSession {
       careerRealismProfile: this.careerRealismProfile,
       league: this.league,
       controlledTeamId: this.controlledTeamId,
+      controlledTeamName: controlledTeam?.name || null,
+      controlledTeamAbbrev: controlledTeam?.abbrev || controlledTeam?.id || null,
       phase: this.phase,
       currentWeek: this.currentWeek,
       seasonSchedule: this.seasonSchedule,
@@ -1178,6 +1215,21 @@ export class GameSession {
     return teamById(this.league, this.controlledTeamId);
   }
 
+  getSetupState() {
+    const controlledTeam = this.getControlledTeam();
+    return {
+      phase: this.phase,
+      currentYear: this.currentYear,
+      currentWeek: this.currentWeek,
+      seasonsSimulated: this.seasonsSimulated,
+      mode: this.mode,
+      controlledTeamId: this.controlledTeamId,
+      controlledTeamName: controlledTeam?.name || null,
+      controlledTeamAbbrev: controlledTeam?.abbrev || controlledTeam?.id || null,
+      teams: this.league.teams.map(toTeamIdentity)
+    };
+  }
+
   getTeamCapSummary(teamId) {
     const capLedger = this.league.capLedger[teamId] || {
       rollover: 0,
@@ -1393,9 +1445,6 @@ export class GameSession {
         Object.entries(state.effort || {}).filter(([playerId]) => availableSet.has(playerId))
       );
       state.board = (state.board || []).filter((playerId) => availableSet.has(playerId));
-      if (!state.board.length) {
-        state.board = this.league.pendingDraft.available.slice(0, 40).map((prospect) => prospect.id);
-      }
     }
   }
 
@@ -1511,7 +1560,7 @@ export class GameSession {
     if (!draft) return { ok: false, error: "No active draft scouting cycle." };
     const state = this.ensureScoutingTeamState(teamId);
     const availableSet = new Set(draft.available.map((prospect) => prospect.id));
-    const board = playerIds.filter((id) => availableSet.has(id));
+    const board = [...new Set(playerIds.filter((id) => availableSet.has(id)))].slice(0, 20);
     if (!board.length) return { ok: false, error: "No valid prospects in board submission." };
     state.board = board;
     state.locked = true;
@@ -2085,6 +2134,12 @@ export class GameSession {
       .sort((a, b) => b.overall - a.overall);
   }
 
+  adjustNegotiationSentiment(player, { morale = 0, motivation = 0 }) {
+    if (!player) return;
+    player.morale = clamp((player.morale || 72) + morale, 35, 99);
+    player.motivation = clamp((player.motivation || 72) + motivation, 35, 99);
+  }
+
   negotiateAndSign({ teamId, playerId, years = null, salary = null }) {
     const demandPayload = this.getNegotiationDemand({ teamId, playerId });
     if (!demandPayload.ok) return demandPayload;
@@ -2099,15 +2154,62 @@ export class GameSession {
     const yearsGap = Math.abs(offerYears - demand.years);
     const salaryGap = (offerSalary - demand.salary) / Math.max(1, demand.salary);
     const acceptanceScore = salaryGap * 1.25 - yearsGap * 0.08 + this.rng.float(-0.08, 0.08);
-    if (acceptanceScore < -0.12) {
+    if (acceptanceScore < -0.18) {
+      this.adjustNegotiationSentiment(player, { morale: -4, motivation: -3 });
       this.logTransaction({
         type: "negotiation",
         teamId,
         playerId,
         playerName: player.name,
-        details: { outcome: "rejected", offerYears, offerSalary, askYears: demand.years, askSalary: demand.salary }
+        details: {
+          outcome: "rejected",
+          offerYears,
+          offerSalary,
+          askYears: demand.years,
+          askSalary: demand.salary,
+          morale: player.morale,
+          motivation: player.motivation
+        }
       });
       return { ok: false, error: "Player rejected the offer based on term/value." };
+    }
+
+    if (acceptanceScore < 0.04) {
+      const counterYears = clamp(Math.max(offerYears, demand.years), 1, 5);
+      const counterSalary = Math.max(
+        850_000,
+        Math.round(Math.max(demand.salary, offerSalary * 1.04, demand.salary * 0.985))
+      );
+      this.adjustNegotiationSentiment(player, { morale: -1, motivation: 1 });
+      this.logTransaction({
+        type: "negotiation",
+        teamId,
+        playerId,
+        playerName: player.name,
+        details: {
+          outcome: "countered",
+          offerYears,
+          offerSalary,
+          counterYears,
+          counterSalary,
+          morale: player.morale,
+          motivation: player.motivation
+        }
+      });
+      return {
+        ok: true,
+        countered: true,
+        teamId,
+        playerId,
+        demand,
+        counterOffer: {
+          years: counterYears,
+          salary: counterSalary,
+          askCapHit: Math.round(counterSalary * 0.9)
+        },
+        morale: player.morale,
+        motivation: player.motivation
+      };
     }
 
     let result = this.resignPlayer({ teamId, playerId, years: offerYears, salary: offerSalary });
@@ -2129,12 +2231,13 @@ export class GameSession {
       }
     }
     if (!result.ok) return result;
+    this.adjustNegotiationSentiment(player, { morale: 3, motivation: 2 });
     this.logTransaction({
       type: "negotiation",
       teamId,
       playerId,
       playerName: player.name,
-      details: { outcome: "accepted", offerYears, offerSalary }
+      details: { outcome: "accepted", offerYears, offerSalary, morale: player.morale, motivation: player.motivation }
     });
     this.logNews(`${player.name} agreed to an extension with ${teamId}`, {
       teamId,
@@ -2142,7 +2245,7 @@ export class GameSession {
       years: offerYears,
       salary: offerSalary
     });
-    return { ok: true, teamId, playerId, contract: result.contract, demand };
+    return { ok: true, teamId, playerId, contract: result.contract, demand, morale: player.morale, motivation: player.motivation };
   }
 
   resignPlayer({ teamId, playerId, years = 3, salary = null }) {
@@ -2445,6 +2548,7 @@ export class GameSession {
       this.refreshChemistryAndSchemeFit();
       this.weekResultsCurrentSeason.push(weekResult);
       this.league.weeklyHistory.push({ year: this.currentYear, week: weekResult.week, ...weekResult });
+      this.archiveGameResults(weekResult.games);
 
       this.currentWeek += 1;
       if (this.currentWeek > NFL_STRUCTURE.regularSeasonWeeks) this.phase = "postseason";
@@ -2493,6 +2597,7 @@ export class GameSession {
       });
       this.lastAwardSummary = estimateAwards(this, this.currentYear);
       this.latestPostseason = playoffResult;
+      this.archiveGameResults(playoffResult.gameArchiveEntries);
       this.prepareDraft();
       this.seedCompLedgerForUpcomingOffseason();
       this.resetOffseasonPipeline(this.currentYear);
@@ -2664,6 +2769,66 @@ export class GameSession {
     };
   }
 
+  archiveGameResults(games = []) {
+    for (const game of games || []) {
+      if (!game?.gameId || !game?.boxScore) continue;
+      const summary = {
+        gameId: game.gameId,
+        year: game.year ?? this.currentYear,
+        week: game.week ?? this.currentWeek,
+        seasonType: game.seasonType || "regular",
+        label: game.label || "game",
+        homeTeamId: game.homeTeamId,
+        awayTeamId: game.awayTeamId,
+        homeScore: game.homeScore,
+        awayScore: game.awayScore,
+        winnerId: game.winnerId,
+        isTie: game.isTie === true,
+        boxScore: game.boxScore
+      };
+      const existing = this.league.gameArchive.findIndex((entry) => entry.gameId === summary.gameId);
+      if (existing >= 0) this.league.gameArchive.splice(existing, 1, summary);
+      else this.league.gameArchive.push(summary);
+    }
+    if (this.league.gameArchive.length > 800) {
+      this.league.gameArchive = this.league.gameArchive.slice(-800);
+    }
+  }
+
+  getRecentBoxScores(teamId = this.controlledTeamId, limit = 8) {
+    const safeLimit = normalizeCount(limit, 1, 20, 8);
+    return this.league.gameArchive
+      .filter((game) => game.homeTeamId === teamId || game.awayTeamId === teamId)
+      .slice()
+      .sort((a, b) => b.year - a.year || b.week - a.week || String(b.gameId).localeCompare(String(a.gameId)))
+      .slice(0, safeLimit)
+      .map((game) => ({
+        gameId: game.gameId,
+        year: game.year,
+        week: game.week,
+        seasonType: game.seasonType,
+        label: game.label,
+        homeTeamId: game.homeTeamId,
+        awayTeamId: game.awayTeamId,
+        homeTeamName: teamById(this.league, game.homeTeamId)?.name || game.homeTeamId,
+        awayTeamName: teamById(this.league, game.awayTeamId)?.name || game.awayTeamId,
+        homeScore: game.homeScore,
+        awayScore: game.awayScore,
+        winnerId: game.winnerId,
+        isTie: game.isTie === true
+      }));
+  }
+
+  getBoxScore(gameId) {
+    const game = this.league.gameArchive.find((entry) => entry.gameId === gameId);
+    if (!game) return null;
+    return {
+      ...game.boxScore,
+      homeTeamName: teamById(this.league, game.homeTeamId)?.name || game.homeTeamId,
+      awayTeamName: teamById(this.league, game.awayTeamId)?.name || game.awayTeamId
+    };
+  }
+
   logTransaction({ type, teamId = null, teamA = null, teamB = null, playerId = null, playerName = null, details = {} }) {
     this.league.transactionSeq += 1;
     const entry = {
@@ -2769,16 +2934,17 @@ export class GameSession {
     };
   }
 
-  getPlayerProfile(playerId) {
+  getPlayerProfile(playerId, { seasonType = "regular" } = {}) {
     const player = [...this.league.players, ...this.league.retiredPlayers].find((entry) => entry.id === playerId);
     if (!player) return null;
     const team = teamById(this.league, player.teamId);
+    const normalizedSeasonType = normalizeSeasonType(seasonType, "regular");
 
     const seasonRows = Object.fromEntries(
       TABLE_CATEGORIES.map((category) => [
         category,
         this.statBook
-          .getPlayerSeasonTable(category)
+          .getPlayerSeasonTable(category, { seasonType: normalizedSeasonType })
           .filter((row) => row.playerId === playerId)
           .sort((a, b) => b.year - a.year)
       ])
@@ -2787,7 +2953,9 @@ export class GameSession {
     const career = Object.fromEntries(
       TABLE_CATEGORIES.map((category) => [
         category,
-        this.statBook.getPlayerCareerTable(category).find((row) => row.playerId === playerId) || null
+        this.statBook
+          .getPlayerCareerTable(category, { seasonType: normalizedSeasonType })
+          .find((row) => row.playerId === playerId) || null
       ])
     );
 
@@ -2799,9 +2967,12 @@ export class GameSession {
         teamName: team?.name || player.teamId,
         position: player.position,
         age: player.age,
+        heightInches: player.heightInches || null,
+        weightLbs: player.weightLbs || null,
         experience: player.experience,
         overall: player.overall,
         schemeFit: player.schemeFit || null,
+        motivation: player.motivation,
         reinjuryRisk: player.reinjuryRisk || 0,
         developmentTrait: player.developmentTrait,
         potential: player.potential,
@@ -2815,9 +2986,11 @@ export class GameSession {
         ratings: player.ratings,
         contract: normalizeContract(player.contract)
       },
-      timeline: this.getPlayerTimeline(playerId)?.timeline || [],
+      seasonType: normalizedSeasonType,
+      timeline: this.getPlayerTimeline(playerId, { seasonType: normalizedSeasonType })?.timeline || [],
       career,
       seasonRows,
+      awardsHistory: this.getPlayerAwards(playerId),
       transactionHistory: this.getTransactionLog({ playerId, limit: 80 })
     };
   }
@@ -2943,10 +3116,7 @@ export class GameSession {
       controlledTeamId: this.controlledTeamId,
       controlledTeam: controlledTeam
         ? {
-            id: controlledTeam.id,
-            name: controlledTeam.name,
-            conference: controlledTeam.conference,
-            division: controlledTeam.division,
+            ...toTeamIdentity(controlledTeam),
             offenseRating: controlledTeam.offenseRating,
             defenseRating: controlledTeam.defenseRating,
             overallRating: controlledTeam.overallRating,
@@ -2974,23 +3144,12 @@ export class GameSession {
       eventLog: this.getEventLog({ limit: 30 }),
       observability: this.getObservability(),
       calibrationJobs: this.listCalibrationJobs(10),
-      teams: this.league.teams.map((team) => ({
-        id: team.id,
-        name: team.name,
-        conference: team.conference,
-        division: team.division,
-        overallRating: team.overallRating,
-        coaching: team.coaching,
-        scheme: team.scheme,
-        strategyProfile: team.strategyProfile || "balanced",
-        staff: team.staff || null,
-        chemistry: team.chemistry || 70,
-        owner: team.owner || null
-      })),
+      teams: this.league.teams.map(toDashboardTeam),
       champions: this.league.champions.slice(-20),
       awards: this.league.awards.slice(-20),
       latestStandings: standingsRows,
       latestWeekResults: this.weekResultsCurrentSeason.slice(-1)[0] || null,
+      recentBoxScores: this.getRecentBoxScores(this.controlledTeamId, 8),
       injuryReport: this.league.players
         .filter((player) => player.status === "active" && player.injury && player.injury.weeksRemaining > 0)
         .slice(0, 80)
@@ -3040,10 +3199,13 @@ export class GameSession {
       name: player.name,
       pos: player.position,
       age: player.age,
+      heightInches: player.heightInches || null,
+      weightLbs: player.weightLbs || null,
       experience: player.experience,
       overall: player.overall,
       schemeFit: player.schemeFit,
       morale: player.morale,
+      motivation: player.motivation,
       reinjuryRisk: Number((player.reinjuryRisk || 0).toFixed(2)),
       devTrait: player.developmentTrait,
       rosterSlot: player.rosterSlot,
@@ -3069,6 +3231,8 @@ export class GameSession {
         name: player.name,
         pos: player.position,
         age: player.age,
+        heightInches: player.heightInches || null,
+        weightLbs: player.weightLbs || null,
         overall: player.overall,
         schemeFit: player.schemeFit || null,
         devTrait: player.developmentTrait,
@@ -3322,17 +3486,42 @@ export class GameSession {
     return [];
   }
 
-  getPlayerTimeline(playerId) {
+  getPlayerTimeline(playerId, { seasonType = "regular" } = {}) {
     const player = [...this.league.players, ...this.league.retiredPlayers].find((entry) => entry.id === playerId);
     if (!player) return null;
+    const normalizedSeasonType = normalizeSeasonType(seasonType, "regular");
     const timeline = Object.entries(player.seasonStats || {})
-      .map(([year, stats]) => ({ year: Number(year), stats }))
+      .map(([year, stats]) => {
+        const numericYear = Number(year);
+        const teamId = stats.meta?.teamId || player.teamId;
+        return {
+          year: numericYear,
+          teamId,
+          teamName: teamById(this.league, teamId)?.name || teamId,
+          pos: stats.meta?.position || player.position,
+          champion: this.league.champions.some((entry) => entry.year === numericYear && entry.championTeamId === teamId),
+          awards: this.getPlayerAwards(playerId, numericYear).map((entry) => entry.award),
+          stats: normalizedSeasonType === "all" ? stats : stats.splits?.[normalizedSeasonType] || createZeroedSeasonStats()
+        };
+      })
+      .filter((entry) => {
+        const total =
+          (entry.stats?.games || 0) +
+          (entry.stats?.passing?.att || 0) +
+          (entry.stats?.rushing?.att || 0) +
+          (entry.stats?.receiving?.targets || 0) +
+          (entry.stats?.defense?.tackles || 0) +
+          (entry.stats?.kicking?.fga || 0) +
+          (entry.stats?.punting?.punts || 0);
+        return normalizedSeasonType === "all" ? true : total > 0;
+      })
       .sort((a, b) => a.year - b.year);
     return {
       playerId: player.id,
       player: player.name,
       pos: player.position,
       status: player.status,
+      seasonType: normalizedSeasonType,
       timeline
     };
   }
@@ -3344,6 +3533,16 @@ export class GameSession {
       seasons: this.statBook.getTeamSeasonTable({ team: teamId }).sort((a, b) => a.year - b.year),
       championships: this.league.champions.filter((entry) => entry.championTeamId === teamId)
     };
+  }
+
+  getPlayerAwards(playerId, year = null) {
+    return (this.league.awards || [])
+      .filter((award) => (year == null ? true : award.year === year))
+      .flatMap((award) =>
+        Object.entries(award)
+          .filter(([key, value]) => key !== "year" && value?.playerId === playerId)
+          .map(([key]) => ({ year: award.year, award: key }))
+      );
   }
 
   runRealismVerification({ seasons = 12, seedOffset = 9_973 } = {}) {

@@ -8,13 +8,16 @@
     "dev": "node src/server.js",
     "start": "node src/server.js",
     "cli": "node src/index.js",
+    "build:pages": "node scripts/build-pages.mjs",
+    "smoke:pages": "node scripts/smoke-pages.mjs",
     "sim:100": "node src/index.js --years 100 --seed 2026 --export",
     "build:realism-profile": "node src/data/scripts/buildRealismProfile.js",
     "etl:pfr": "node src/data/scripts/pfrEtl.js",
     "verify:realism": "node src/data/scripts/verifyRealism.js --seasons 12",
     "test": "node --test --test-isolation=none",
     "test:ui": "playwright test",
-    "test:ui:headed": "playwright test --headed"
+    "test:ui:headed": "playwright test --headed",
+    "build:pages": "node scripts/build-pages.mjs"
   },
   "license": "MIT",
   "devDependencies": {

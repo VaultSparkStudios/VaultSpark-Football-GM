@@ -1,22 +1,34 @@
+import { createApiClient } from "./lib/api/createApiClient.js";
+
 const state = {
   dashboard: null,
   roster: [],
   freeAgents: [],
+  contractRoster: [],
+  contractTeamId: null,
+  contractCap: null,
+  negotiationTargets: [],
+  selectedContractPlayerId: null,
+  tradeBlockIds: [],
   statsRows: [],
   statsPage: 1,
   statsPageSize: 40,
   statsSortKey: null,
   statsSortDir: "desc",
+  statsCompanionRows: {},
   draftState: null,
+  selectedDraftProspectId: null,
   depthChart: null,
   depthSnapShare: null,
   depthRoster: [],
+  depthOrder: [],
   scheduleWeek: null,
   scheduleYear: null,
   scheduleCache: {},
   calendar: null,
   calendarWeek: 1,
   scouting: null,
+  scoutingBoardDraft: [],
   txRows: [],
   saves: [],
   picks: [],
@@ -34,6 +46,16 @@ const state = {
   comparePlayers: [],
   commandFilter: "",
   retiredPool: [],
+  statsHiddenColumns: [],
+  activePlayerId: null,
+  recentBoxScores: [],
+  activeBoxScoreId: null,
+  simControl: {
+    active: false,
+    pauseRequested: false,
+    mode: null
+  },
+  syncedControlledTeamId: null,
   contractTools: {
     expiring: [],
     tagEligible: [],
@@ -41,18 +63,110 @@ const state = {
   }
 };
 
-async function api(path, options = {}) {
-  const response = await fetch(path, {
-    method: options.method || "GET",
-    headers: { "Content-Type": "application/json" },
-    body: options.body ? JSON.stringify(options.body) : undefined
-  });
-  const payload = await response.json();
-  if (!response.ok || payload.ok === false) {
-    throw new Error(payload.error || `Request failed: ${response.status}`);
+const DISPLAY_LABELS = {
+  ovr: "OVR",
+  pos: "Pos",
+  tm: "Tm",
+  pf: "PF",
+  pa: "PA",
+  pct: "Pct",
+  yds: "Yds",
+  td: "TD",
+  tkl: "Tkl",
+  rec: "Rec",
+  tgt: "Tgt",
+  ypr: "YPR",
+  passYds: "Pass Yds",
+  passTd: "Pass TD",
+  rushYds: "Rush Yds",
+  rushTd: "Rush TD",
+  recYds: "Rec Yds",
+  recTd: "Rec TD",
+  fgm: "FGM",
+  fga: "FGA",
+  xpm: "XPM",
+  xpa: "XPA",
+  capHit: "Cap Hit",
+  currCap: "Current Cap",
+  tagCap: "Tag Cap",
+  optionCap: "Option Cap",
+  snapShare: "Snap Share",
+  season: "Season",
+  age: "Age",
+  team: "Team",
+  lg: "Lg",
+  g: "G",
+  gs: "GS",
+  cmpPct: "Cmp%",
+  tdPct: "TD%",
+  intPct: "Int%",
+  firstDowns: "1D",
+  ypg: "Y/G",
+  apg: "A/G",
+  recPg: "R/G",
+  tpg: "Tch/G",
+  ypt: "Y/Tgt",
+  touch: "Touch",
+  yScr: "YScr",
+  yTch: "Y/Tch",
+  recYds: "Rec Yds",
+  rushYds: "Rush Yds",
+  rushYpa: "Y/A",
+  av: "AV",
+  awards: "Awards",
+  comb: "Comb",
+  pd: "PD",
+  ff: "FF",
+  fr: "FR",
+  sk: "Sk",
+  nya: "NY/A",
+  anya: "ANY/A"
+};
+
+const GUIDE_SECTIONS = [
+  {
+    title: "League Setup",
+    body:
+      "Start a league from the Main Menu, choose `Drive` or `Play`, choose an era profile, then pick your controlled team. Drive is faster and resolves games by possession. Play resolves more play-level variance and produces richer box scores."
+  },
+  {
+    title: "Era Profiles",
+    body:
+      "`Modern Pass` increases passing lean and offensive volatility. `Balanced` stays near a middle-ground NFL baseline. `Legacy` lowers tempo and pushes the league toward more rushing and lower passing volume."
+  },
+  {
+    title: "Season Loop",
+    body:
+      "The long loop is regular season -> postseason -> retirements -> coaching carousel -> free agency negotiation -> combine -> pro day -> draft -> next regular season. Stage chips and the calendar tell you what the current step expects."
+  },
+  {
+    title: "Core Team Screens",
+    body:
+      "Overview tracks standings, recent results, schedule, box scores, and league news. Roster handles active/practice moves and designations. Free Agents is the unsigned market. Depth Chart controls playing-time order. Transactions handles trades and overrides. Contracts handles cap, extensions, negotiation, restructures, trade block, and quick trade actions."
+  },
+  {
+    title: "Scouting And Draft",
+    body:
+      "Scouting stays separate from Draft. You start with a capped board, spend weekly scouting points for progressive reveals, lock the board, then use one-click user draft actions while CPU picks stay locked to CPU control."
+  },
+  {
+    title: "Ratings, Physicals, And Development",
+    body:
+      "Speed, acceleration, agility, route running, carrying, break tackle, coverage, pass rush, blocking, awareness, and other ratings all feed the sim. Height and weight influence positional frame and physical identity. Potential is seeded at player creation from development trait and ratings, then progression/regression follows age, potential, and seasonal development curves."
+  },
+  {
+    title: "Stats And Profiles",
+    body:
+      "Statistics supports season, career, and team views with regular-season, playoff, and combined filters. Player profiles show season-by-season tables, career summaries, team splits, awards, and playoff context. Box scores archive the controlled team’s games with scoring summary and play-by-play."
+  },
+  {
+    title: "Settings, History, And Saves",
+    body:
+      "Settings controls injuries, chemistry, narratives, comp picks, owner mode, offseason automation, and realism verification. History shows records, champions, awards, team history, and player timelines. Saves, backups, snapshot export/import, and client/server runtime support preserve league continuity."
   }
-  return payload;
-}
+];
+
+const api = createApiClient();
 
 function escapeHtml(value) {
   return String(value)
@@ -73,6 +187,71 @@ function setStatus(text) {
   if (el) el.textContent = text;
 }
 
+function toTitleCaseKey(key) {
+  if (!key) return "";
+  if (DISPLAY_LABELS[key]) return DISPLAY_LABELS[key];
+  return String(key)
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function shouldHideInternalColumn(column) {
+  return column === "id" || column === "playerId";
+}
+
+function readStatsHiddenColumns() {
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem("vsfgm:stats-hidden-columns") || "[]");
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveStatsHiddenColumns(columns) {
+  state.statsHiddenColumns = [...columns];
+  try {
+    window.localStorage.setItem("vsfgm:stats-hidden-columns", JSON.stringify(state.statsHiddenColumns));
+  } catch {
+    // Ignore persistence failures.
+  }
+}
+
+function readTradeBlockIds() {
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem("vsfgm:trade-block") || "[]");
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveTradeBlockIds(ids) {
+  state.tradeBlockIds = [...new Set(ids)];
+  try {
+    window.localStorage.setItem("vsfgm:trade-block", JSON.stringify(state.tradeBlockIds));
+  } catch {
+    // Ignore persistence failures.
+  }
+}
+
+function formatHeight(heightInches) {
+  if (!Number.isFinite(heightInches)) return "-";
+  const feet = Math.floor(heightInches / 12);
+  const inches = heightInches % 12;
+  return `${feet}'${inches}"`;
+}
+
+function normalizeSeasonType(value, fallback = "regular") {
+  if (value === "regular" || value === "playoffs" || value === "all") return value;
+  return fallback;
+}
+
+function selectedSeasonType() {
+  return normalizeSeasonType(document.getElementById("statsSeasonTypeFilter")?.value, "regular");
+}
+
 function showToast(message) {
   const stack = document.getElementById("toastStack");
   if (!stack) return;
@@ -81,6 +260,457 @@ function showToast(message) {
   item.textContent = message;
   stack.appendChild(item);
   setTimeout(() => item.remove(), 2600);
+}
+
+function teamName(teamId) {
+  return state.dashboard?.teams?.find((team) => team.id === teamId)?.name || teamId;
+}
+
+function teamDisplayLabel(team) {
+  return `${team?.abbrev || team?.id || "-"} - ${team?.name || "-"}`;
+}
+
+function setSimControl(next) {
+  state.simControl = { ...state.simControl, ...next };
+  const pauseBtn = document.getElementById("pauseSimBtn");
+  if (pauseBtn) {
+    pauseBtn.disabled = !state.simControl.active;
+    pauseBtn.textContent = state.simControl.pauseRequested ? "Pausing..." : "Pause Sim";
+  }
+}
+
+function approximateValue(position, stats) {
+  if (!stats) return 0;
+  if (position === "QB") {
+    return Math.round(
+      (stats.passing?.yards || 0) / 165 +
+        (stats.passing?.td || 0) * 0.8 -
+        (stats.passing?.int || 0) * 0.6 +
+        (stats.rushing?.yards || 0) / 120
+    );
+  }
+  if (position === "RB") {
+    return Math.round(
+      (stats.rushing?.yards || 0) / 115 +
+        (stats.rushing?.td || 0) * 0.7 +
+        (stats.receiving?.yards || 0) / 180 +
+        (stats.receiving?.td || 0) * 0.45
+    );
+  }
+  if (position === "WR" || position === "TE") {
+    return Math.round((stats.receiving?.yards || 0) / 125 + (stats.receiving?.td || 0) * 0.75);
+  }
+  if (position === "OL") {
+    return Math.round((stats.snaps?.offense || 0) / 130 - (stats.blocking?.sacksAllowed || 0) * 1.5);
+  }
+  if (position === "K" || position === "P") {
+    return Math.round((stats.kicking?.fgm || 0) * 0.45 + (stats.punting?.in20 || 0) * 0.2);
+  }
+  return Math.round(
+    (stats.defense?.tackles || 0) / 6 +
+      (stats.defense?.sacks || 0) * 1.2 +
+      (stats.defense?.int || 0) * 1.5 +
+      (stats.defense?.ff || 0) * 0.8
+  );
+}
+
+function passerRateFromStats(stats) {
+  const cmp = stats?.cmp || 0;
+  const att = Math.max(1, stats?.att || 0);
+  const yards = stats?.yards || 0;
+  const td = stats?.td || 0;
+  const int = stats?.int || 0;
+  const a = Math.max(0, Math.min(2.375, cmp / att - 0.3)) * 5;
+  const b = Math.max(0, Math.min(2.375, yards / att - 3)) * 0.25;
+  const c = Math.max(0, Math.min(2.375, (td / att) * 20));
+  const d = Math.max(0, Math.min(2.375, 2.375 - (int / att) * 25));
+  return Number((((a + b + c + d) / 6) * 100).toFixed(1));
+}
+
+function formatAwards(awards = [], champion = false) {
+  const tags = [...awards];
+  if (champion) tags.unshift("SB");
+  return tags.join(", ");
+}
+
+function buildProfileSeasonRows(profile) {
+  const position = profile.player.position;
+  return (profile.timeline || []).map((entry) => {
+    const stats = entry.stats || {};
+    const passing = stats.passing || {};
+    const rushing = stats.rushing || {};
+    const receiving = stats.receiving || {};
+    const defense = stats.defense || {};
+    const games = Math.max(1, stats.games || 0);
+    const common = {
+      season: entry.year,
+      age: profile.player.age - ((state.dashboard?.currentYear || entry.year) - entry.year),
+      team: entry.teamId,
+      lg: "NFL",
+      pos: entry.pos || position,
+      g: stats.games || 0,
+      gs: stats.gamesStarted || 0
+    };
+    if (position === "QB") {
+      return {
+        ...common,
+        cmp: passing.cmp || 0,
+        att: passing.att || 0,
+        cmpPct: Number((((passing.cmp || 0) / Math.max(1, passing.att || 0)) * 100).toFixed(1)),
+        yds: passing.yards || 0,
+        td: passing.td || 0,
+        tdPct: Number((((passing.td || 0) / Math.max(1, passing.att || 0)) * 100).toFixed(1)),
+        int: passing.int || 0,
+        intPct: Number((((passing.int || 0) / Math.max(1, passing.att || 0)) * 100).toFixed(1)),
+        firstDowns: passing.firstDowns || 0,
+        ypa: Number(((passing.yards || 0) / Math.max(1, passing.att || 0)).toFixed(1)),
+        ypc: Number(((passing.yards || 0) / Math.max(1, passing.cmp || 0)).toFixed(1)),
+        ypg: Number(((passing.yards || 0) / games).toFixed(1)),
+        rate: passerRateFromStats(passing),
+        sk: passing.sacks || 0,
+        nya: Number((((passing.yards || 0) - (passing.sackYards || 0)) / Math.max(1, (passing.att || 0) + (passing.sacks || 0))).toFixed(2)),
+        anya: Number((((passing.yards || 0) + (passing.td || 0) * 20 - (passing.int || 0) * 45 - (passing.sackYards || 0)) / Math.max(1, (passing.att || 0) + (passing.sacks || 0))).toFixed(2)),
+        av: approximateValue(position, stats),
+        awards: formatAwards(entry.awards, entry.champion)
+      };
+    }
+    if (position === "RB") {
+      const scrimmageYards = (rushing.yards || 0) + (receiving.yards || 0);
+      const touches = (rushing.att || 0) + (receiving.rec || 0);
+      return {
+        ...common,
+        att: rushing.att || 0,
+        yds: rushing.yards || 0,
+        td: rushing.td || 0,
+        firstDowns: rushing.firstDowns || 0,
+        ypa: Number(((rushing.yards || 0) / Math.max(1, rushing.att || 0)).toFixed(1)),
+        ypg: Number(((rushing.yards || 0) / games).toFixed(1)),
+        apg: Number(((rushing.att || 0) / games).toFixed(1)),
+        tgt: receiving.targets || 0,
+        rec: receiving.rec || 0,
+        recYds: receiving.yards || 0,
+        ypr: Number(((receiving.yards || 0) / Math.max(1, receiving.rec || 0)).toFixed(1)),
+        recPg: Number(((receiving.rec || 0) / games).toFixed(1)),
+        catchPct: Number((((receiving.rec || 0) / Math.max(1, receiving.targets || 0)) * 100).toFixed(1)),
+        ypt: Number(((receiving.yards || 0) / Math.max(1, receiving.targets || 0)).toFixed(1)),
+        touch: touches,
+        yTch: Number((scrimmageYards / Math.max(1, touches)).toFixed(1)),
+        yScr: scrimmageYards,
+        fmb: rushing.fumbles || 0,
+        av: approximateValue(position, stats),
+        awards: formatAwards(entry.awards, entry.champion)
+      };
+    }
+    if (position === "WR" || position === "TE") {
+      const scrimmageYards = (rushing.yards || 0) + (receiving.yards || 0);
+      const touches = (rushing.att || 0) + (receiving.rec || 0);
+      return {
+        ...common,
+        tgt: receiving.targets || 0,
+        rec: receiving.rec || 0,
+        yds: receiving.yards || 0,
+        ypr: Number(((receiving.yards || 0) / Math.max(1, receiving.rec || 0)).toFixed(1)),
+        td: receiving.td || 0,
+        firstDowns: receiving.firstDowns || 0,
+        recPg: Number(((receiving.rec || 0) / games).toFixed(1)),
+        ypg: Number(((receiving.yards || 0) / games).toFixed(1)),
+        catchPct: Number((((receiving.rec || 0) / Math.max(1, receiving.targets || 0)) * 100).toFixed(1)),
+        ypt: Number(((receiving.yards || 0) / Math.max(1, receiving.targets || 0)).toFixed(1)),
+        att: rushing.att || 0,
+        rushYds: rushing.yards || 0,
+        rushYpa: Number(((rushing.yards || 0) / Math.max(1, rushing.att || 0)).toFixed(1)),
+        touch: touches,
+        yTch: Number((scrimmageYards / Math.max(1, touches)).toFixed(1)),
+        yScr: scrimmageYards,
+        fmb: rushing.fumbles || 0,
+        av: approximateValue(position, stats),
+        awards: formatAwards(entry.awards, entry.champion)
+      };
+    }
+    if (position === "K" || position === "P") {
+      const kicking = stats.kicking || {};
+      const punting = stats.punting || {};
+      return {
+        ...common,
+        fgm: kicking.fgm || 0,
+        fga: kicking.fga || 0,
+        fgPct: Number((((kicking.fgm || 0) / Math.max(1, kicking.fga || 0)) * 100).toFixed(1)),
+        xpm: kicking.xpm || 0,
+        xpa: kicking.xpa || 0,
+        punts: punting.punts || 0,
+        in20: punting.in20 || 0,
+        av: approximateValue(position, stats),
+        awards: formatAwards(entry.awards, entry.champion)
+      };
+    }
+    return {
+      ...common,
+      int: defense.int || 0,
+      pd: defense.passDefended || 0,
+      ff: defense.ff || 0,
+      fr: defense.fr || 0,
+      sk: defense.sacks || 0,
+      comb: defense.tackles || 0,
+      solo: defense.solo || 0,
+      ast: defense.ast || 0,
+      tfl: defense.tfl || 0,
+      qbHits: defense.qbHits || 0,
+      av: approximateValue(position, stats),
+      awards: formatAwards(entry.awards, entry.champion)
+    };
+  });
+}
+
+function buildProfileCareerRow(profile) {
+  const player = profile.player;
+  const passing = profile.career?.passing || {};
+  const rushing = profile.career?.rushing || {};
+  const receiving = profile.career?.receiving || {};
+  const defense = profile.career?.defense || {};
+  const seasons = profile.timeline?.length || 0;
+  const games = Math.max(
+    1,
+    passing.g || rushing.g || receiving.g || defense.g || profile.timeline?.reduce((sum, row) => sum + (row.stats?.games || 0), 0) || 1
+  );
+  if (player.position === "QB") {
+    return [{
+      season: "Career",
+      seasons,
+      cmp: passing.cmp || 0,
+      att: passing.att || 0,
+      cmpPct: passing.cmpPct || 0,
+      yds: passing.yds || 0,
+      td: passing.td || 0,
+      int: passing.int || 0,
+      ypa: passing.ypa || 0,
+      rate: passing.rate || 0,
+      sk: passing.sacks || 0,
+      av: approximateValue(player.position, {
+        passing: { yards: passing.yds || 0, td: passing.td || 0, int: passing.int || 0 },
+        rushing: { yards: rushing.yds || 0 }
+      })
+    }];
+  }
+  if (player.position === "RB") {
+    const touch = (rushing.att || 0) + (receiving.rec || 0);
+    const yScr = (rushing.yds || 0) + (receiving.yds || 0);
+    return [{
+      season: "Career",
+      seasons,
+      att: rushing.att || 0,
+      yds: rushing.yds || 0,
+      td: rushing.td || 0,
+      ypa: rushing.ypa || 0,
+      tgt: receiving.tgt || 0,
+      rec: receiving.rec || 0,
+      recYds: receiving.yds || 0,
+      ypr: receiving.ypr || 0,
+      touch,
+      yTch: Number((yScr / Math.max(1, touch)).toFixed(1)),
+      yScr,
+      fmb: rushing.fmb || 0,
+      av: approximateValue(player.position, {
+        rushing: { yards: rushing.yds || 0, td: rushing.td || 0 },
+        receiving: { yards: receiving.yds || 0, td: receiving.td || 0 }
+      })
+    }];
+  }
+  if (player.position === "WR" || player.position === "TE") {
+    const touch = (rushing.att || 0) + (receiving.rec || 0);
+    const yScr = (rushing.yds || 0) + (receiving.yds || 0);
+    return [{
+      season: "Career",
+      seasons,
+      tgt: receiving.tgt || 0,
+      rec: receiving.rec || 0,
+      yds: receiving.yds || 0,
+      ypr: receiving.ypr || 0,
+      td: receiving.td || 0,
+      catchPct: receiving.catchPct || 0,
+      att: rushing.att || 0,
+      rushYds: rushing.yds || 0,
+      touch,
+      yTch: Number((yScr / Math.max(1, touch)).toFixed(1)),
+      yScr,
+      av: approximateValue(player.position, {
+        rushing: { yards: rushing.yds || 0, td: rushing.td || 0 },
+        receiving: { yards: receiving.yds || 0, td: receiving.td || 0 }
+      })
+    }];
+  }
+  if (player.position === "K" || player.position === "P") {
+    const kicking = profile.career?.kicking || {};
+    const punting = profile.career?.punting || {};
+    return [{
+      season: "Career",
+      seasons,
+      fgm: kicking.fgm || 0,
+      fga: kicking.fga || 0,
+      fgPct: kicking.fgPct || 0,
+      xpm: kicking.xpm || 0,
+      xpa: kicking.xpa || 0,
+      punts: punting.punts || 0,
+      in20: punting.in20 || 0
+    }];
+  }
+  return [{
+    season: "Career",
+    seasons,
+    int: defense.int || 0,
+    pd: defense.pd || 0,
+    ff: defense.ff || 0,
+    fr: defense.fr || 0,
+    sk: defense.sacks || 0,
+    comb: defense.tkl || 0,
+    solo: defense.solo || 0,
+    ast: defense.ast || 0,
+    tfl: defense.tfl || 0,
+    qbHits: defense.qbHits || 0,
+    av: approximateValue(player.position, {
+      defense: { tackles: defense.tkl || 0, sacks: defense.sacks || 0, int: defense.int || 0, ff: defense.ff || 0 }
+    })
+  }];
+}
+
+function buildProfileTeamSplits(profile) {
+  const splitMap = new Map();
+  for (const entry of profile.timeline || []) {
+    if (!splitMap.has(entry.teamId)) {
+      splitMap.set(entry.teamId, { team: entry.teamId, seasons: 0, g: 0, championships: 0, awards: [] });
+    }
+    const current = splitMap.get(entry.teamId);
+    current.seasons += 1;
+    current.g += entry.stats?.games || 0;
+    current.championships += entry.champion ? 1 : 0;
+    current.awards.push(...(entry.awards || []));
+  }
+  return [...splitMap.values()].map((entry) => ({
+    team: entry.team,
+    seasons: entry.seasons,
+    g: entry.g,
+    championships: entry.championships,
+    awards: [...new Set(entry.awards)].join(", ")
+  }));
+}
+
+function rowJoinKey(row) {
+  return `${row.playerId || row.id || row.player}-${row.year || row.seasons || 0}`;
+}
+
+function shapeStatsRowsForDisplay(rows, { scope, category }) {
+  if (scope === "team") return rows;
+  const rushingCompanion = new Map((state.statsCompanionRows.receiving || []).map((row) => [rowJoinKey(row), row]));
+  const receivingCompanion = new Map((state.statsCompanionRows.rushing || []).map((row) => [rowJoinKey(row), row]));
+  return (rows || []).map((row) => {
+    const common = {
+      playerId: row.playerId,
+      player: row.player,
+      season: row.year ?? row.seasons,
+      age: row.age ?? "",
+      team: row.tm,
+      lg: "NFL",
+      pos: row.pos,
+      g: row.g ?? row.seasons ?? 0,
+      gs: row.gs ?? 0
+    };
+    if (category === "passing") {
+      return {
+        ...common,
+        cmp: row.cmp,
+        att: row.att,
+        cmpPct: row.cmpPct,
+        yds: row.yds,
+        td: row.td,
+        tdPct: Number(((row.td || 0) / Math.max(1, row.att || 0) * 100).toFixed(1)),
+        int: row.int,
+        intPct: Number(((row.int || 0) / Math.max(1, row.att || 0) * 100).toFixed(1)),
+        firstDowns: row.firstDowns,
+        ypa: row.ypa,
+        ypc: row.ypc,
+        ypg: Number(((row.yds || 0) / Math.max(1, row.g || 0)).toFixed(1)),
+        rate: row.rate,
+        sk: row.sacks,
+        nya: Number((((row.yds || 0) - (row.sackYds || 0)) / Math.max(1, (row.att || 0) + (row.sacks || 0))).toFixed(2)),
+        anya: Number((((row.yds || 0) + (row.td || 0) * 20 - (row.int || 0) * 45 - (row.sackYds || 0)) / Math.max(1, (row.att || 0) + (row.sacks || 0))).toFixed(2))
+      };
+    }
+    if (category === "rushing") {
+      const receiving = rushingCompanion.get(rowJoinKey(row)) || {};
+      const touch = (row.att || 0) + (receiving.rec || 0);
+      const yScr = (row.yds || 0) + (receiving.yds || 0);
+      return {
+        ...common,
+        att: row.att,
+        yds: row.yds,
+        td: row.td,
+        firstDowns: row.firstDowns,
+        ypa: row.ypa,
+        ypg: Number(((row.yds || 0) / Math.max(1, row.g || 0)).toFixed(1)),
+        apg: Number(((row.att || 0) / Math.max(1, row.g || 0)).toFixed(1)),
+        tgt: receiving.tgt || 0,
+        rec: receiving.rec || 0,
+        recYds: receiving.yds || 0,
+        ypr: receiving.ypr || 0,
+        catchPct: receiving.catchPct || 0,
+        ypt: receiving.ypt || 0,
+        touch,
+        yTch: Number((yScr / Math.max(1, touch)).toFixed(1)),
+        yScr,
+        fmb: row.fmb || 0
+      };
+    }
+    if (category === "receiving") {
+      const rushing = receivingCompanion.get(rowJoinKey(row)) || {};
+      const touch = (rushing.att || 0) + (row.rec || 0);
+      const yScr = (rushing.yds || 0) + (row.yds || 0);
+      return {
+        ...common,
+        tgt: row.tgt,
+        rec: row.rec,
+        yds: row.yds,
+        ypr: row.ypr,
+        td: row.td,
+        firstDowns: row.firstDowns,
+        recPg: Number(((row.rec || 0) / Math.max(1, row.g || 0)).toFixed(1)),
+        ypg: Number(((row.yds || 0) / Math.max(1, row.g || 0)).toFixed(1)),
+        catchPct: row.catchPct,
+        ypt: row.ypt,
+        att: rushing.att || 0,
+        rushYds: rushing.yds || 0,
+        rushYpa: rushing.ypa || 0,
+        touch,
+        yTch: Number((yScr / Math.max(1, touch)).toFixed(1)),
+        yScr,
+        fmb: rushing.fmb || 0
+      };
+    }
+    if (category === "defense") {
+      return {
+        ...common,
+        int: row.int,
+        pd: row.pd,
+        ff: row.ff,
+        fr: row.fr,
+        sk: row.sacks,
+        comb: row.tkl,
+        solo: row.solo,
+        ast: row.ast,
+        tfl: row.tfl,
+        qbHits: row.qbHits
+      };
+    }
+    return { ...common, ...row };
+  });
+}
+
+function renderGuideContent() {
+  const html = GUIDE_SECTIONS.map(
+    (section) => `<div class="record"><strong>${escapeHtml(section.title)}</strong><div>${escapeHtml(section.body)}</div></div>`
+  ).join("");
+  const rules = document.getElementById("rulesGuideContent");
+  const footer = document.getElementById("guideFooterContent");
+  if (rules) rules.innerHTML = html;
+  if (footer) footer.innerHTML = html;
 }
 
 function setTableSkeleton(tableId, rows = 6) {
@@ -150,7 +780,11 @@ function setTradeEvalText(text) {
   if (el) el.textContent = text;
 }
 
-function renderTable(tableId, rows, { sortable = false, onSort = null, sortKey = null, sortDir = "desc", maxRows = null } = {}) {
+function renderTable(
+  tableId,
+  rows,
+  { sortable = false, onSort = null, sortKey = null, sortDir = "desc", maxRows = null, hiddenColumns = [] } = {}
+) {
   const table = document.getElementById(tableId);
   if (!table) return;
   if (!rows?.length) {
@@ -159,12 +793,14 @@ function renderTable(tableId, rows, { sortable = false, onSort = null, sortKey =
   }
 
   const visibleRows = maxRows == null ? rows : rows.slice(0, Math.max(1, maxRows));
-  const columns = Object.keys(visibleRows[0]);
+  const columns = Object.keys(visibleRows[0]).filter(
+    (col) => !shouldHideInternalColumn(col) && !hiddenColumns.includes(col)
+  );
   const head = `<tr>${columns
     .map((col) => {
-      if (!sortable) return `<th>${escapeHtml(col)}</th>`;
+      if (!sortable) return `<th>${escapeHtml(toTitleCaseKey(col))}</th>`;
       const marker = sortKey === col ? (sortDir === "asc" ? " ^" : " v") : "";
-      return `<th data-sort-key="${escapeHtml(col)}">${escapeHtml(col)}${marker}</th>`;
+      return `<th data-sort-key="${escapeHtml(col)}">${escapeHtml(toTitleCaseKey(col))}${marker}</th>`;
     })
     .join("")}</tr>`;
 
@@ -204,23 +840,25 @@ function setSelectOptions(selectId, options, preferredValue = null) {
 function syncTeamSelects() {
   const teams = state.dashboard?.teams || [];
   const controlled = state.dashboard?.controlledTeamId || teams[0]?.id;
+  const controlledChanged = state.syncedControlledTeamId !== controlled;
   const teamOptions = teams.map((team) => ({
     value: team.id,
-    label: `${team.id} - ${team.name}`
+    label: teamDisplayLabel(team)
   }));
 
   setSelectOptions("teamSelect", teamOptions, controlled);
-  setSelectOptions("rosterTeamSelect", teamOptions);
+  setSelectOptions("rosterTeamSelect", teamOptions, controlledChanged ? controlled : null);
+  setSelectOptions("contractsTeamSelect", teamOptions, controlledChanged ? controlled : state.contractTeamId || controlled);
   setSelectOptions("tradeTeamA", teamOptions);
   setSelectOptions("tradeTeamB", teamOptions);
   setSelectOptions("teamHistorySelect", teamOptions);
-  setSelectOptions("depthTeamSelect", teamOptions);
+  setSelectOptions("depthTeamSelect", teamOptions, controlledChanged ? controlled : null);
   setSelectOptions("retirementOverrideTeamSelect", teamOptions, controlled);
   setSelectOptions("analyticsTeamFilter", [{ value: "", label: "ALL Teams" }, ...teamOptions]);
   setSelectOptions("staffTeamSelect", teamOptions, controlled);
   setSelectOptions("ownerTeamSelect", teamOptions, controlled);
 
-  ["rosterTeamSelect", "tradeTeamA", "teamHistorySelect", "depthTeamSelect", "retirementOverrideTeamSelect"].forEach((id) => {
+  ["rosterTeamSelect", "contractsTeamSelect", "tradeTeamA", "teamHistorySelect", "depthTeamSelect", "retirementOverrideTeamSelect"].forEach((id) => {
     const el = document.getElementById(id);
     if (el && !el.value && controlled) el.value = controlled;
   });
@@ -240,13 +878,20 @@ function syncTeamSelects() {
     [{ value: "", label: "ALL Teams" }, ...teamOptions],
     txPrevious || ""
   );
+  state.syncedControlledTeamId = controlled;
 }
 
 function updateTopMeta() {
   const d = state.dashboard;
   if (!d) return;
   document.getElementById("topMetaText").textContent =
-    `${d.currentYear} W${d.currentWeek} | ${d.phase} | Team: ${d.controlledTeamId}`;
+    `${d.currentYear} W${d.currentWeek} | ${d.phase} | Team: ${d.controlledTeam?.abbrev || d.controlledTeamId}`;
+  const stageChip = document.getElementById("stageChip");
+  if (stageChip) {
+    const draftStage = d.draft?.completed === false ? `Draft Pick ${d.draft.currentPick}` : null;
+    const offseasonStage = d.offseasonPipeline?.currentStage?.replaceAll("-", " ") || null;
+    stageChip.textContent = `Stage: ${draftStage || offseasonStage || d.phase}`;
+  }
 }
 
 function renderOverview() {
@@ -425,6 +1070,99 @@ function renderWeekResults() {
   renderTable("injuryTable", [...injuries, ...suspensions].slice(0, 100));
 }
 
+function renderBoxScoreTicker() {
+  const ticker = document.getElementById("boxScoreTicker");
+  if (!ticker) return;
+  if (!state.recentBoxScores.length) {
+    ticker.innerHTML = `<span class="small">No user-team games played yet.</span>`;
+    return;
+  }
+  ticker.innerHTML = state.recentBoxScores
+    .map(
+      (game) => `
+        <button class="ticker-item" data-boxscore-id="${escapeHtml(game.gameId)}">
+          <span>W${escapeHtml(game.week)} ${escapeHtml(game.seasonType === "playoffs" ? "PO" : "REG")}</span>
+          <span>${escapeHtml(game.awayTeamId)} ${escapeHtml(game.awayScore)}</span>
+          <strong>@</strong>
+          <span>${escapeHtml(game.homeTeamId)} ${escapeHtml(game.homeScore)}</span>
+        </button>`
+    )
+    .join("");
+}
+
+async function loadBoxScore(gameId) {
+  state.activeBoxScoreId = gameId;
+  const payload = await api(`/api/boxscore?gameId=${encodeURIComponent(gameId)}`);
+  const boxScore = payload.boxScore;
+  document.getElementById("boxScoreModalTitle").textContent =
+    `${boxScore.awayTeamName} at ${boxScore.homeTeamName}`;
+  document.getElementById("boxScoreModalMeta").textContent =
+    `${boxScore.year} | Week ${boxScore.week || "-"} | ${boxScore.seasonType}`;
+  document.getElementById("boxScoreAwayTitle").textContent = `${boxScore.awayTeamName} Player Stats`;
+  document.getElementById("boxScoreHomeTitle").textContent = `${boxScore.homeTeamName} Player Stats`;
+
+  renderTable("boxScoreTeamStatsTable", [
+    {
+      team: boxScore.awayTeamName,
+      score: boxScore.awayTeam.score,
+      yds: boxScore.awayTeam.totalYards,
+      passYds: boxScore.awayTeam.passingYards,
+      rushYds: boxScore.awayTeam.rushingYards,
+      firstDowns: boxScore.awayTeam.firstDowns,
+      turnovers: boxScore.awayTeam.turnovers
+    },
+    {
+      team: boxScore.homeTeamName,
+      score: boxScore.homeTeam.score,
+      yds: boxScore.homeTeam.totalYards,
+      passYds: boxScore.homeTeam.passingYards,
+      rushYds: boxScore.homeTeam.rushingYards,
+      firstDowns: boxScore.homeTeam.firstDowns,
+      turnovers: boxScore.homeTeam.turnovers
+    }
+  ]);
+
+  renderTable(
+    "boxScoreScoringTable",
+    (boxScore.scoringSummary || []).map((entry) => ({
+      qtr: entry.quarterLabel,
+      clock: entry.clock,
+      team: entry.teamId,
+      type: entry.type,
+      summary: entry.description
+    }))
+  );
+
+  renderTable(
+    "boxScorePlayTable",
+    (boxScore.playByPlay || []).map((entry) => ({
+      qtr: entry.quarterLabel,
+      clock: entry.clock,
+      offense: entry.offenseTeamId,
+      play: entry.description
+    }))
+  );
+
+  const renderSide = (prefix, groups = {}) => {
+    renderTable(`${prefix}PassingTable`, groups.passing || []);
+    renderTable(`${prefix}RushingTable`, groups.rushing || []);
+    renderTable(`${prefix}ReceivingTable`, groups.receiving || []);
+    renderTable(`${prefix}DefenseTable`, groups.defense || []);
+    renderTable(`${prefix}KickingTable`, groups.kicking || []);
+    ["Passing", "Rushing", "Receiving", "Defense", "Kicking"].forEach((suffix) => {
+      decoratePlayerColumnFromRows(`${prefix}${suffix}Table`, groups[suffix.toLowerCase()] || [], { idKeys: ["playerId"] });
+    });
+  };
+  renderSide("boxScoreAway", boxScore.playerStats?.away);
+  renderSide("boxScoreHome", boxScore.playerStats?.home);
+  document.getElementById("boxScoreModal").classList.remove("hidden");
+}
+
+function closeBoxScoreModal() {
+  state.activeBoxScoreId = null;
+  document.getElementById("boxScoreModal").classList.add("hidden");
+}
+
 function renderRoster() {
   const rows = state.roster.map((player) => ({
     id: player.id,
@@ -450,11 +1188,13 @@ function renderRoster() {
   const table = document.getElementById("rosterTable");
   const tr = table.querySelectorAll("tr");
   for (let i = 1; i < tr.length; i += 1) {
-    const playerId = rows[i - 1].id;
-    tr[i].lastElementChild.innerHTML =
-      `<button data-act="release" data-id="${escapeHtml(playerId)}" class="warn">Release</button> ` +
-      `<button data-act="ps" data-id="${escapeHtml(playerId)}">To PS</button> ` +
-      `<button data-act="active" data-id="${escapeHtml(playerId)}">To Active</button>`;
+    const player = rows[i - 1];
+    const actions = [
+      `<button data-act="release" data-id="${escapeHtml(player.id)}" class="warn">Release</button>`
+    ];
+    if (player.slot === "active") actions.push(`<button data-act="ps" data-id="${escapeHtml(player.id)}">To PS</button>`);
+    if (player.slot === "practice") actions.push(`<button data-act="active" data-id="${escapeHtml(player.id)}">To Active</button>`);
+    tr[i].lastElementChild.innerHTML = actions.join(" ");
   }
   decoratePlayerColumnFromRows("rosterTable", rows, { idKeys: ["id"] });
 }
@@ -504,9 +1244,17 @@ function renderExpiringContracts() {
     pos: player.pos,
     ovr: player.overall,
     yearsLeft: player.contract?.yearsRemaining,
-    capHit: fmtMoney(player.contract?.capHit || 0)
+    capHit: fmtMoney(player.contract?.capHit || 0),
+    action: ""
   }));
   renderTable("expiringTable", expiringRows);
+  document.getElementById("expiringTable")?.querySelectorAll("tr").forEach((tr, index) => {
+    if (index === 0) return;
+    const row = expiringRows[index - 1];
+    const cell = tr.lastElementChild;
+    if (!cell || !row) return;
+    cell.innerHTML = `<button data-contract-select="${escapeHtml(row.id)}">Select</button>`;
+  });
 
   const tagRows = tagEligible.map((player) => ({
     id: player.id,
@@ -526,7 +1274,7 @@ function renderExpiringContracts() {
     const row = tagRows[index - 1];
     const cell = tr.lastElementChild;
     if (!cell || !row) return;
-    cell.innerHTML = `<button data-contract-fill="tag" data-player-id="${escapeHtml(row.id)}">Use</button>`;
+    cell.innerHTML = `<button data-contract-fill="tag" data-player-id="${escapeHtml(row.id)}">Select</button>`;
   });
 
   const optionRows = optionEligible.map((player) => ({
@@ -548,7 +1296,7 @@ function renderExpiringContracts() {
     const row = optionRows[index - 1];
     const cell = tr.lastElementChild;
     if (!cell || !row) return;
-    cell.innerHTML = `<button data-contract-fill="option" data-player-id="${escapeHtml(row.id)}">Use</button>`;
+    cell.innerHTML = `<button data-contract-fill="option" data-player-id="${escapeHtml(row.id)}">Select</button>`;
   });
 
   decoratePlayerColumnFromRows("expiringTable", expiringRows, { idKeys: ["id"] });
@@ -557,26 +1305,63 @@ function renderExpiringContracts() {
   updateContractPreview();
 }
 
-function lookupContractCandidate(kind, playerId) {
+function lookupContractCandidate(kind, playerId = state.selectedContractPlayerId) {
   if (!playerId) return null;
   if (kind === "tag") return (state.contractTools?.tagEligible || []).find((row) => row.id === playerId) || null;
   if (kind === "option") return (state.contractTools?.optionEligible || []).find((row) => row.id === playerId) || null;
   return null;
 }
 
+function getSelectedContractPlayer() {
+  return state.contractRoster.find((player) => player.id === state.selectedContractPlayerId) || null;
+}
+
+function setSelectedContractPlayer(playerId, { preserveInputs = false } = {}) {
+  state.selectedContractPlayerId = playerId || null;
+  const player = getSelectedContractPlayer();
+  const label = document.getElementById("contractsSelectedPlayerText");
+  if (label) {
+    label.textContent = player ? `Selected: ${player.name} (${player.pos})` : "Selected: None";
+  }
+  if (!preserveInputs) {
+    const demand = state.negotiationTargets.find((entry) => entry.id === playerId)?.demand || null;
+    const yearsInput = document.getElementById("contractYearsInput");
+    const salaryInput = document.getElementById("contractSalaryInput");
+    if (yearsInput) yearsInput.value = String(demand?.years || player?.contract?.yearsRemaining || 3);
+    if (salaryInput) salaryInput.value = demand?.salary || "";
+  }
+  updateContractPreview();
+}
+
 function updateContractPreview() {
   const preview = document.getElementById("contractPreviewText");
-  const tagPlayerId = document.getElementById("tagPlayerId")?.value?.trim();
-  const optionPlayerId = document.getElementById("optionPlayerId")?.value?.trim();
-  const capSpace = state.dashboard?.cap?.capSpace || 0;
-
-  const tag = lookupContractCandidate("tag", tagPlayerId);
-  const option = lookupContractCandidate("option", optionPlayerId);
+  const player = getSelectedContractPlayer();
+  const tag = lookupContractCandidate("tag");
+  const option = lookupContractCandidate("option");
   const tagBtn = document.getElementById("franchiseTagBtn");
   const optionBtn = document.getElementById("fifthOptionBtn");
+  const resignBtn = document.getElementById("contractsResignBtn");
+  const negotiateBtn = document.getElementById("contractsNegotiateBtn");
+  const restructureBtn = document.getElementById("contractsRestructureBtn");
+  const tradeBtn = document.getElementById("contractsTradeBtn");
+  const blockBtn = document.getElementById("contractsTradeBlockBtn");
+  const capSpace = state.contractCap?.capSpace || 0;
 
   if (tagBtn) tagBtn.disabled = !tag;
   if (optionBtn) optionBtn.disabled = !option;
+  if (resignBtn) resignBtn.disabled = !player;
+  if (negotiateBtn) negotiateBtn.disabled = !player;
+  if (restructureBtn) restructureBtn.disabled = !player;
+  if (tradeBtn) tradeBtn.disabled = !player;
+  if (blockBtn) blockBtn.disabled = !player;
+
+  if (!preview) return;
+  if (!player) {
+    preview.textContent = "Select a player row to stage a contract action or queue a trade package.";
+    return;
+  }
+
+  const demand = state.negotiationTargets.find((entry) => entry.id === player.id)?.demand || null;
 
   if (tag) {
     const resultingCap = capSpace + (tag.contract?.capHit || 0) - (tag.projectedCapHit || 0);
@@ -592,7 +1377,98 @@ function updateContractPreview() {
     return;
   }
 
-  preview.textContent = "Select an eligible player to preview cap impact.";
+  preview.textContent =
+    `${player.name} | Salary ${fmtMoney(player.contract?.salary || 0)} | Cap ${fmtMoney(player.contract?.capHit || 0)} | Years ${player.contract?.yearsRemaining || 0}` +
+    (demand ? ` | Ask ${demand.years}y / ${fmtMoney(demand.salary || 0)}` : "");
+}
+
+function renderContractsPage() {
+  const roster = state.contractRoster || [];
+  const totalSalary = roster.reduce((sum, player) => sum + Number(player.contract?.salary || 0), 0);
+  const totalYears = roster.reduce((sum, player) => sum + Number(player.contract?.yearsRemaining || 0), 0);
+  document.getElementById("contractsCapSpaceCard").textContent = fmtMoney(state.contractCap?.capSpace || 0);
+  document.getElementById("contractsActiveCapCard").textContent = fmtMoney(state.contractCap?.activeCap || 0);
+  document.getElementById("contractsDeadCapCard").textContent = fmtMoney(state.contractCap?.deadCapCurrentYear || 0);
+  document.getElementById("contractsAvgSalaryCard").textContent = roster.length ? fmtMoney(totalSalary / roster.length) : "$0";
+  document.getElementById("contractsAvgYearsCard").textContent = roster.length ? (totalYears / roster.length).toFixed(1) : "0.0";
+  document.getElementById("contractsTradeBlockCard").textContent = `${roster.filter((player) => state.tradeBlockIds.includes(player.id)).length}`;
+
+  const demandById = new Map((state.negotiationTargets || []).map((entry) => [entry.id, entry.demand || null]));
+  const rows = roster.map((player) => ({
+    id: player.id,
+    player: player.name,
+    pos: player.pos,
+    age: player.age,
+    ovr: player.overall,
+    morale: player.morale,
+    motivation: player.motivation ?? "-",
+    salary: fmtMoney(player.contract?.salary || 0),
+    capHit: fmtMoney(player.contract?.capHit || 0),
+    guaranteed: fmtMoney(player.contract?.guaranteed || 0),
+    years: player.contract?.yearsRemaining || 0,
+    ask: demandById.get(player.id) ? fmtMoney(demandById.get(player.id).salary || 0) : "-",
+    block: state.tradeBlockIds.includes(player.id) ? "Yes" : "",
+    action: ""
+  }));
+  renderTable("contractsRosterTable", rows);
+  decoratePlayerColumnFromRows("contractsRosterTable", rows, { idKeys: ["id"] });
+  document.getElementById("contractsRosterTable")?.querySelectorAll("tr").forEach((tr, index) => {
+    if (index === 0) return;
+    const row = rows[index - 1];
+    const cell = tr.lastElementChild;
+    if (!cell || !row) return;
+    const isBlocked = state.tradeBlockIds.includes(row.id);
+    cell.innerHTML = [
+      `<button data-contract-select="${escapeHtml(row.id)}">Select</button>`,
+      `<button data-contract-action="trade" data-player-id="${escapeHtml(row.id)}">Trade</button>`,
+      `<button data-contract-action="block" data-player-id="${escapeHtml(row.id)}">${isBlocked ? "Unblock" : "Block"}</button>`
+    ].join(" ");
+  });
+
+  const tradeBlockRows = roster
+    .filter((player) => state.tradeBlockIds.includes(player.id))
+    .map((player) => ({
+      id: player.id,
+      player: player.name,
+      pos: player.pos,
+      ovr: player.overall,
+      capHit: fmtMoney(player.contract?.capHit || 0),
+      years: player.contract?.yearsRemaining || 0,
+      action: ""
+    }));
+  renderTable("tradeBlockTable", tradeBlockRows);
+  decoratePlayerColumnFromRows("tradeBlockTable", tradeBlockRows, { idKeys: ["id"] });
+  document.getElementById("tradeBlockTable")?.querySelectorAll("tr").forEach((tr, index) => {
+    if (index === 0) return;
+    const row = tradeBlockRows[index - 1];
+    const cell = tr.lastElementChild;
+    if (!cell || !row) return;
+    cell.innerHTML = `<button data-contract-action="trade" data-player-id="${escapeHtml(row.id)}">Trade</button> <button data-contract-action="block" data-player-id="${escapeHtml(row.id)}">Unblock</button>`;
+  });
+
+  updateContractPreview();
+}
+
+function setContractActionText(text) {
+  const el = document.getElementById("contractActionText");
+  if (el) el.textContent = text;
+}
+
+function toggleTradeBlockPlayer(playerId) {
+  const next = state.tradeBlockIds.includes(playerId)
+    ? state.tradeBlockIds.filter((id) => id !== playerId)
+    : [...state.tradeBlockIds, playerId];
+  saveTradeBlockIds(next);
+  renderContractsPage();
+}
+
+function queueTradePlayer(playerId) {
+  const teamId = state.contractTeamId || state.dashboard?.controlledTeamId || "BUF";
+  document.getElementById("tradeTeamA").value = teamId;
+  document.getElementById("tradeAIds").value = playerId;
+  activateTab("transactionsTab");
+  const player = state.contractRoster.find((entry) => entry.id === playerId);
+  setTradeEvalText(`${player?.name || playerId} queued for Team A. Add players or picks, then evaluate or execute.`);
 }
 
 function deriveContractToolsFromRoster(roster, expiringPlayers) {
@@ -652,24 +1528,39 @@ function deriveContractToolsFromRoster(roster, expiringPlayers) {
 
 function renderDepthChart() {
   const position = document.getElementById("depthPositionSelect")?.value;
-  const ids = state.depthChart?.[position] || [];
+  const ids = state.depthOrder?.length ? state.depthOrder : state.depthChart?.[position] || [];
   const shareRows = state.depthSnapShare?.[position] || [];
   const rosterById = new Map(state.depthRoster.map((player) => [player.id, player]));
 
   const rows = ids.map((playerId, index) => {
     const player = rosterById.get(playerId);
-    const share = shareRows.find((row) => row.playerId === playerId) || shareRows[index];
+    const share = shareRows[index];
     return {
+      id: playerId,
       rank: index + 1,
       role: share?.role || `${position}${index + 1}`,
-      playerId,
       player: player?.name || "Unknown",
       pos: player?.pos || position,
       ovr: player?.overall || "",
-      snapShare: share ? `${Math.round((share.snapShare || 0) * 100)}%` : "-"
+      snapShare: share ? `${Math.round((share.snapShare || 0) * 100)}%` : "-",
+      action: ""
     };
   });
   renderTable("depthTable", rows);
+  decoratePlayerColumnFromRows("depthTable", rows, { idKeys: ["id"] });
+  document.getElementById("depthStatusText").textContent = ids.length
+    ? `Adjusting ${position} for ${document.getElementById("depthTeamSelect")?.value || state.dashboard?.controlledTeamId || "BUF"}`
+    : "No players loaded for this position";
+  document.getElementById("depthTable")?.querySelectorAll("tr").forEach((tr, index) => {
+    if (index === 0) return;
+    const playerId = ids[index - 1];
+    const cell = tr.lastElementChild;
+    if (!cell || !playerId) return;
+    cell.innerHTML = [
+      `<button data-depth-move="up" data-player-id="${escapeHtml(playerId)}">Up</button>`,
+      `<button data-depth-move="down" data-player-id="${escapeHtml(playerId)}">Down</button>`
+    ].join(" ");
+  });
 }
 
 function renderRetiredPool() {
@@ -741,8 +1632,9 @@ function renderRulesTab() {
   const coreRows = [
     { area: "League Structure", rule: "32 teams, 17-game regular season, NFL playoff format, division/conference standings." },
     { area: "Simulation Engine", rule: "Drive/possession simulation with rating, coaching, chemistry, and scheme effects." },
+    { area: "Team Identity", rule: "Every new league draws one real U.S. city plus one nickname per team for a single randomized team identity." },
     { area: "Depth Chart Usage", rule: "Each depth slot has position-specific snap-share targets; game snaps and touches are role-weighted." },
-    { area: "Stats Model", rule: "PFR-style season/career tables for passing, rushing, receiving, defense, blocking, kicking, punting, and snaps." },
+    { area: "Stats Model", rule: "PFR-inspired season/career tables, player profiles, playoffs filters, and archived controlled-team box scores." },
     { area: "Contracts & Cap", rule: "Cap hits, dead cap, restructures, tags, options, waivers, and rollover modeled in team cap ledger." },
     { area: "Career & Retirement", rule: "Position max ages (QB 45, RB 40, etc), age curve progression/decline, and override comeback logic." },
     { area: "Retirement Override", rule: "You can bring retired players back while age-eligible; winning teams can suppress retirement chance." },
@@ -752,9 +1644,12 @@ function renderRulesTab() {
   renderTable("rulesCoreTable", coreRows);
 
   const actionRows = [
-    { tab: "Overview", feature: "Advance Week/Season", behavior: "Simulates schedule, updates standings, stats, transactions, and events." },
+    { tab: "Overview", feature: "Advance Week/Season", behavior: "Simulates schedule, updates standings, stats, transactions, and events. Multi-week sims can be paused." },
+    { tab: "Overview", feature: "Header Box Scores", behavior: "Tracks the controlled team’s recent games with clickable scoring summary, play-by-play, team stats, and player stats." },
     { tab: "Roster & FA", feature: "Release / PS / Active", behavior: "Moves players between active/practice/waiver/free-agent pools with eligibility checks." },
+    { tab: "Depth Chart", feature: "Up / Down Order", behavior: "Reorders role priority for the selected position so snap share follows the visible slot order." },
     { tab: "Transactions", feature: "Trade + Evaluate", behavior: "Validates package fairness/cap before executing asset swaps." },
+    { tab: "Contracts", feature: "Extensions + Negotiation", behavior: "Shows cap context, expiring deals, negotiation targets, restructures, tag/option tools, quick trade, and trade block actions." },
     { tab: "Transactions", feature: "Retirement Overrides", behavior: "Loads retired pool and applies comeback override with team + win threshold." },
     { tab: "Draft", feature: "Scouting + Draft", behavior: "Allocates scouting points, locks board, runs user/CPU picks, and tracks selections." },
     { tab: "Statistics", feature: "Player/Team Filters", behavior: "PFR-style filtered tables by scope, year, team, position, and category." },
@@ -765,14 +1660,35 @@ function renderRulesTab() {
     { tab: "Settings", feature: "League Settings", behavior: "Controls injuries, offseason automation, comp picks, chemistry, and retirement retention." }
   ];
   renderTable("rulesActionsTable", actionRows);
+  renderGuideContent();
 }
 
 function renderDraft() {
   const draft = state.draftState;
   if (!draft) {
+    state.selectedDraftProspectId = null;
+    document.getElementById("draftStatusText").textContent = "No active draft";
+    document.getElementById("draftStageText").textContent = "-";
+    document.getElementById("draftOnClockText").textContent = "-";
+    document.getElementById("draftUserWindowText").textContent = "-";
+    document.getElementById("draftSelectedText").textContent = "Selected Prospect: None";
     renderTable("draftTable", []);
+    renderTable("draftAvailableTable", []);
     return;
   }
+
+  const currentTeam = draft.order?.[(draft.currentPick - 1) % 32] || "-";
+  const isUserPick = currentTeam === state.dashboard?.controlledTeamId;
+  const availableProspects = (draft.available || []).slice(0, 60);
+  if (state.selectedDraftProspectId && !availableProspects.some((prospect) => prospect.id === state.selectedDraftProspectId)) {
+    state.selectedDraftProspectId = null;
+  }
+  document.getElementById("draftStatusText").textContent = draft.completed
+    ? "Draft Complete"
+    : `Pick ${draft.currentPick} / ${draft.totalPicks}`;
+  document.getElementById("draftStageText").textContent = draft.completed ? "Completed" : "Draft In Progress";
+  document.getElementById("draftOnClockText").textContent = currentTeam;
+  document.getElementById("draftUserWindowText").textContent = isUserPick ? "User On Clock" : "CPU On Clock";
 
   const latestSelections = (draft.selections || []).slice(-50).reverse();
   const rows = latestSelections.length
@@ -792,21 +1708,62 @@ function renderDraft() {
       }));
 
   renderTable("draftTable", rows);
+
+  const availableRows = availableProspects.map((prospect, index) => ({
+    id: prospect.id,
+    rank: prospect.scouting?.rank || index + 1,
+    player: prospect.name,
+    pos: prospect.position,
+    age: prospect.age,
+    height: formatHeight(prospect.heightInches),
+    weight: prospect.weightLbs || "-",
+    ovr: prospect.overall,
+    projRnd: prospect.scouting?.projectedRound || "-",
+    board: state.scoutingBoardDraft.indexOf(prospect.id) >= 0 ? state.scoutingBoardDraft.indexOf(prospect.id) + 1 : "-",
+    action: isUserPick && !draft.completed ? "Select / Draft" : ""
+  }));
+  renderTable("draftAvailableTable", availableRows);
+  decoratePlayerColumnFromRows("draftAvailableTable", availableRows, { idKeys: ["id"] });
+  const selectedProspect = availableProspects.find((prospect) => prospect.id === state.selectedDraftProspectId) || null;
+  document.getElementById("draftSelectedText").textContent = selectedProspect
+    ? `Selected Prospect: ${selectedProspect.name} (${selectedProspect.position})`
+    : "Selected Prospect: None";
+  document.getElementById("draftAvailableTable")?.querySelectorAll("tr").forEach((tr, index) => {
+    if (index === 0) return;
+    const prospect = availableRows[index - 1];
+    const cell = tr.lastElementChild;
+    if (!prospect || !cell) return;
+    cell.innerHTML = isUserPick && !draft.completed
+      ? `<button data-draft-select-id="${escapeHtml(prospect.id)}">Select</button> <button data-draft-player-id="${escapeHtml(prospect.id)}">Draft</button>`
+      : "";
+  });
 }
 
 function renderScouting() {
   const scouting = state.scouting;
   if (!scouting) {
+    state.scoutingBoardDraft = [];
     document.getElementById("scoutingPointsText").textContent = "Points: 0";
     document.getElementById("scoutingLockText").textContent = "Board: Unlocked";
+    document.getElementById("scoutingBoardText").textContent = "Board: 0 / 20";
     renderTable("scoutingTable", []);
     renderTable("scoutingReportTable", []);
     return;
   }
 
+  const availableSet = new Set((scouting.prospects || []).map((prospect) => prospect.playerId));
+  state.scoutingBoardDraft = (scouting.locked ? scouting.board || [] : state.scoutingBoardDraft || [])
+    .filter((playerId) => availableSet.has(playerId))
+    .slice(0, 20);
+  if (!scouting.locked && !state.scoutingBoardDraft.length && Array.isArray(scouting.board) && scouting.board.length) {
+    state.scoutingBoardDraft = scouting.board.filter((playerId) => availableSet.has(playerId)).slice(0, 20);
+  }
+
   document.getElementById("scoutingPointsText").textContent = `Points: ${scouting.points || 0}`;
   document.getElementById("scoutingLockText").textContent = scouting.locked ? "Board: Locked" : "Board: Unlocked";
+  document.getElementById("scoutingBoardText").textContent = `Board: ${state.scoutingBoardDraft.length} / 20`;
   const rows = (scouting.prospects || []).slice(0, 140).map((prospect) => ({
+    id: prospect.playerId,
     playerId: prospect.playerId,
     player: prospect.player,
     pos: prospect.pos,
@@ -816,10 +1773,34 @@ function renderScouting() {
     forty: prospect.combine40,
     scoutOvr: prospect.scoutedOverall ?? "-",
     baseline: prospect.baselineScout ?? "-",
-    confidence: `${prospect.confidence ?? 0}%`
+    confidence: `${prospect.confidence ?? 0}%`,
+    board: state.scoutingBoardDraft.indexOf(prospect.playerId) >= 0 ? state.scoutingBoardDraft.indexOf(prospect.playerId) + 1 : "-",
+    action: scouting.locked ? "Locked" : "Scout / Board"
   }));
   renderTable("scoutingTable", rows);
   decoratePlayerColumnFromRows("scoutingTable", rows, { idKeys: ["playerId"] });
+  document.getElementById("scoutingTable")?.querySelectorAll("tr").forEach((tr, index) => {
+    if (index === 0) return;
+    const prospect = rows[index - 1];
+    const cell = tr.lastElementChild;
+    if (!prospect || !cell) return;
+    const onBoard = state.scoutingBoardDraft.includes(prospect.playerId);
+    if (scouting.locked) {
+      cell.textContent = "Locked";
+      return;
+    }
+    const boardButtons = onBoard
+      ? [
+          `<button data-board-move="up" data-player-id="${escapeHtml(prospect.playerId)}">Up</button>`,
+          `<button data-board-move="down" data-player-id="${escapeHtml(prospect.playerId)}">Down</button>`,
+          `<button data-board-toggle="remove" data-player-id="${escapeHtml(prospect.playerId)}">Remove</button>`
+        ]
+      : [`<button data-board-toggle="add" data-player-id="${escapeHtml(prospect.playerId)}">Add To Board</button>`];
+    cell.innerHTML = [
+      `<button data-scout-player-id="${escapeHtml(prospect.playerId)}">Scout</button>`,
+      ...boardButtons
+    ].join(" ");
+  });
 
   const reportRows = (scouting.weeklyReports || [])
     .slice(0, 20)
@@ -839,6 +1820,17 @@ function renderScouting() {
     .slice(0, 120);
   renderTable("scoutingReportTable", reportRows);
   decoratePlayerColumnFromRows("scoutingReportTable", reportRows, { idKeys: ["playerId"] });
+}
+
+function moveIdWithinList(list, playerId, delta) {
+  const index = list.indexOf(playerId);
+  if (index < 0) return list;
+  const nextIndex = Math.max(0, Math.min(list.length - 1, index + delta));
+  if (nextIndex === index) return list;
+  const next = [...list];
+  const [row] = next.splice(index, 1);
+  next.splice(nextIndex, 0, row);
+  return next;
 }
 
 function renderRecordsAndHistory() {
@@ -998,6 +1990,7 @@ function renderPickAssets() {
 }
 
 function renderNegotiationTargets(rows) {
+  state.negotiationTargets = rows || [];
   const tableRows = (rows || []).map((entry) => ({
     id: entry.id,
     player: entry.name,
@@ -1015,9 +2008,10 @@ function renderNegotiationTargets(rows) {
     const row = tableRows[index - 1];
     const cell = tr.lastElementChild;
     if (!cell || !row) return;
-    cell.innerHTML = `<button data-negotiate-id="${escapeHtml(row.id)}">Use</button>`;
+    cell.innerHTML = `<button data-negotiate-id="${escapeHtml(row.id)}">Select</button>`;
   });
   decoratePlayerColumnFromRows("negotiationTable", tableRows, { idKeys: ["id"] });
+  renderContractsPage();
 }
 
 function renderAnalytics() {
@@ -1079,9 +2073,18 @@ function renderRosterBoard() {
     pos: player.pos,
     ovr: player.overall,
     fit: player.schemeFit ?? "-",
-    morale: player.morale
+    morale: player.morale,
+    action: ""
   }));
   renderTable("rosterBoardTable", rows);
+  decoratePlayerColumnFromRows("rosterBoardTable", rows, { idKeys: ["id"] });
+  document.getElementById("rosterBoardTable")?.querySelectorAll("tr").forEach((tr, index) => {
+    if (index === 0) return;
+    const row = rows[index - 1];
+    const cell = tr.lastElementChild;
+    if (!cell || !row) return;
+    cell.innerHTML = `<button data-roster-board-move="up" data-player-id="${escapeHtml(row.id)}">Up</button> <button data-roster-board-move="down" data-player-id="${escapeHtml(row.id)}">Down</button>`;
+  });
 }
 
 function renderOwner() {
@@ -1283,17 +2286,28 @@ function applySettingsControls() {
 }
 
 async function loadPlayerModal(playerId) {
-  const payload = await api(`/api/player?playerId=${encodeURIComponent(playerId)}`);
+  state.activePlayerId = playerId;
+  const seasonType = normalizeSeasonType(document.getElementById("playerSeasonTypeFilter")?.value, selectedSeasonType());
+  const payload = await api(
+    `/api/player?playerId=${encodeURIComponent(playerId)}&seasonType=${encodeURIComponent(seasonType)}`
+  );
   const profile = payload.profile;
   const player = profile.player;
+  document.getElementById("playerSeasonTypeFilter").value = profile.seasonType || seasonType;
 
   document.getElementById("playerModalTitle").textContent = `${player.name} (${player.position})`;
   document.getElementById("playerModalMeta").textContent =
-    `${player.teamId} | OVR ${player.overall} | Age ${player.age} | Dev ${player.developmentTrait}`;
+    `${player.teamId} | OVR ${player.overall} | Age ${player.age} | ${formatHeight(player.heightInches)} ${player.weightLbs || "-"} lbs | Dev ${player.developmentTrait}`;
+  document.getElementById("playerProfileSummary").innerHTML = [
+    `<div><strong>${escapeHtml(player.name)}</strong></div>`,
+    `<div>Team: ${escapeHtml(player.teamName || player.teamId)} | Position: ${escapeHtml(player.position)} | Experience: ${escapeHtml(player.experience || 0)}</div>`,
+    `<div>Height / Weight: ${escapeHtml(formatHeight(player.heightInches))} / ${escapeHtml(player.weightLbs || "-")} lbs | Potential: ${escapeHtml(player.potential || "-")} | Morale: ${escapeHtml(player.morale || "-")} | Motivation: ${escapeHtml(player.motivation || "-")}</div>`,
+    `<div>Physical frame matters to the sim through positional body ranges, while ratings drive role quality, efficiency, usage, and development outcomes.</div>`
+  ].join("");
 
   const ratingRows = Object.entries(player.ratings || {})
     .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([rating, value]) => ({ rating, value }));
+    .map(([rating, value]) => ({ rating: toTitleCaseKey(rating), value }));
   renderTable("playerRatingsTable", ratingRows);
 
   renderTable("playerContractTable", [
@@ -1305,34 +2319,15 @@ async function loadPlayerModal(playerId) {
     }
   ]);
 
-  renderTable("playerCareerTable", [
-    {
-      passingYds: profile.career?.passing?.yds || 0,
-      passingTd: profile.career?.passing?.td || 0,
-      rushingYds: profile.career?.rushing?.yds || 0,
-      rushingTd: profile.career?.rushing?.td || 0,
-      receivingYds: profile.career?.receiving?.yds || 0,
-      receivingTd: profile.career?.receiving?.td || 0,
-      tackles: profile.career?.defense?.tkl || 0,
-      sacks: profile.career?.defense?.sacks || 0,
-      interceptions: profile.career?.defense?.int || 0
-    }
-  ]);
-
-  const seasonRows = (profile.timeline || [])
-    .slice()
-    .reverse()
-    .slice(0, 12)
-    .map((entry) => ({
-      year: entry.year,
-      passYds: entry.stats?.passing?.yards || 0,
-      passTd: entry.stats?.passing?.td || 0,
-      rushYds: entry.stats?.rushing?.yards || 0,
-      recYds: entry.stats?.receiving?.yards || 0,
-      tkl: entry.stats?.defense?.tackles || 0,
-      sacks: entry.stats?.defense?.sacks || 0
-    }));
-  renderTable("playerSeasonTable", seasonRows);
+  renderTable("playerCareerTable", buildProfileCareerRow(profile));
+  renderTable("playerSeasonTable", buildProfileSeasonRows(profile).slice().reverse());
+  renderTable("playerTeamSplitTable", buildProfileTeamSplits(profile));
+  renderTable(
+    "playerAccoladesTable",
+    (profile.awardsHistory || []).length
+      ? profile.awardsHistory.map((entry) => ({ year: entry.year, award: entry.award }))
+      : [{ year: "-", award: "No league awards recorded yet" }]
+  );
 
   renderTable(
     "playerTxTable",
@@ -1349,6 +2344,7 @@ async function loadPlayerModal(playerId) {
 }
 
 function closePlayerModal() {
+  state.activePlayerId = null;
   document.getElementById("playerModal").classList.add("hidden");
 }
 
@@ -1357,11 +2353,13 @@ function updateStatsControls() {
   const category = document.getElementById("categoryFilter");
   const position = document.getElementById("positionFilter");
   const year = document.getElementById("yearFilter");
+  const seasonType = document.getElementById("statsSeasonTypeFilter");
 
   if (scope === "team") {
     category.disabled = true;
     position.disabled = true;
     year.disabled = false;
+    if (seasonType) seasonType.disabled = true;
     return;
   }
 
@@ -1369,12 +2367,14 @@ function updateStatsControls() {
     category.disabled = false;
     position.disabled = false;
     year.disabled = true;
+    if (seasonType) seasonType.disabled = false;
     return;
   }
 
   category.disabled = false;
   position.disabled = false;
   year.disabled = false;
+  if (seasonType) seasonType.disabled = false;
 }
 
 function applyStatsSort() {
@@ -1411,11 +2411,28 @@ function applyStatsSort() {
     },
     sortKey: state.statsSortKey,
     sortDir: state.statsSortDir,
-    maxRows: virtualized ? 80 : null
+    maxRows: virtualized ? 80 : null,
+    hiddenColumns: state.statsHiddenColumns
   });
   decoratePlayerColumnFromRows("statsTable", pageRows, { idKeys: ["playerId"] });
 
   document.getElementById("statsPageText").textContent = `Page ${state.statsPage}/${totalPages} (${rows.length} rows)`;
+  renderStatsColumnFilters(rows[0] ? Object.keys(rows[0]).filter((key) => !shouldHideInternalColumn(key)) : []);
+}
+
+function renderStatsColumnFilters(columns) {
+  const container = document.getElementById("statsColumnFilters");
+  if (!container) return;
+  if (!columns.length) {
+    container.innerHTML = "<span class=\"small\">No columns loaded</span>";
+    return;
+  }
+  container.innerHTML = columns
+    .map((column) => {
+      const checked = !state.statsHiddenColumns.includes(column);
+      return `<label><input type="checkbox" data-stats-column="${escapeHtml(column)}" ${checked ? "checked" : ""} /> ${escapeHtml(toTitleCaseKey(column))}</label>`;
+    })
+    .join("");
 }
 
 function applyDashboard(newState) {
@@ -1432,6 +2449,7 @@ function applyDashboard(newState) {
   state.observability = newState.observability ? { ...(state.observability || {}), runtime: newState.observability } : state.observability;
   state.depthSnapShare = newState.depthChartSnapShare || state.depthSnapShare;
   state.realismVerification = newState.lastRealismVerificationReport || state.realismVerification;
+  state.recentBoxScores = newState.recentBoxScores || state.recentBoxScores;
 
   if (!previous || previous.currentYear !== newState.currentYear) {
     state.scheduleYear = newState.currentYear;
@@ -1462,6 +2480,7 @@ function applyDashboard(newState) {
   renderSchedule();
   renderStandings();
   renderWeekResults();
+  renderBoxScoreTicker();
   renderFreeAgency();
   renderExpiringContracts();
   state.newsRows = newState.news || state.newsRows;
@@ -1496,6 +2515,12 @@ function activateTab(tabId) {
   document.querySelectorAll(".tab-panel").forEach((panel) => {
     panel.classList.toggle("active", panel.id === tabId);
   });
+  if (tabId === "contractsTab") {
+    loadContractsTeam().catch((error) => {
+      setStatus(`Error: ${error.message}`);
+      showToast(`Error: ${error.message}`);
+    });
+  }
 }
 
 async function loadState() {
@@ -1552,10 +2577,33 @@ async function loadPickAssets() {
   renderPickAssets();
 }
 
-async function loadNegotiations() {
-  const teamId = state.dashboard?.controlledTeamId || "BUF";
-  const payload = await api(`/api/contracts/negotiations?team=${encodeURIComponent(teamId)}`);
+async function loadNegotiations(teamId = null) {
+  const safeTeamId = teamId || state.contractTeamId || state.dashboard?.controlledTeamId || "BUF";
+  const payload = await api(`/api/contracts/negotiations?team=${encodeURIComponent(safeTeamId)}`);
   renderNegotiationTargets(payload.targets || []);
+}
+
+async function loadContractsTeam() {
+  const teamId = (document.getElementById("contractsTeamSelect").value || state.dashboard?.controlledTeamId || "BUF").toUpperCase();
+  const [rosterPayload, expiringPayload] = await Promise.all([
+    api(`/api/roster?team=${encodeURIComponent(teamId)}`),
+    api(`/api/contracts/expiring?team=${encodeURIComponent(teamId)}`)
+  ]);
+  state.contractTeamId = teamId;
+  state.contractRoster = rosterPayload.roster || [];
+  state.contractCap = rosterPayload.cap || null;
+  const derived = deriveContractToolsFromRoster(state.contractRoster, expiringPayload.players || []);
+  state.contractTools = {
+    expiring: expiringPayload.players || derived.expiring,
+    tagEligible: derived.tagEligible,
+    optionEligible: derived.optionEligible
+  };
+  if (state.selectedContractPlayerId && !state.contractRoster.some((player) => player.id === state.selectedContractPlayerId)) {
+    state.selectedContractPlayerId = null;
+  }
+  renderExpiringContracts();
+  await loadNegotiations(teamId);
+  renderContractsPage();
 }
 
 async function loadAnalytics() {
@@ -1662,18 +2710,11 @@ async function loadRoster() {
   state.roster = data.roster || [];
   renderRoster();
   renderRosterBoard();
-
-  const expiring = await api(`/api/contracts/expiring?team=${encodeURIComponent(teamId)}`);
-  const derived = deriveContractToolsFromRoster(state.roster, expiring.players || []);
-  const isControlledTeam = teamId === (state.dashboard?.controlledTeamId || "");
-  const dashboardTools = state.dashboard?.contractTools || {};
-  state.contractTools = {
-    expiring: expiring.players || derived.expiring,
-    tagEligible: isControlledTeam ? dashboardTools.tagEligible?.length ? dashboardTools.tagEligible : derived.tagEligible : derived.tagEligible,
-    optionEligible: isControlledTeam ? dashboardTools.optionEligible?.length ? dashboardTools.optionEligible : derived.optionEligible : derived.optionEligible
-  };
-  renderExpiringContracts();
-  await loadNegotiations();
+  if (!state.contractTeamId || state.contractTeamId === teamId) {
+    state.contractTeamId = teamId;
+    state.contractRoster = data.roster || [];
+    state.contractCap = data.cap || null;
+  }
 }
 
 async function loadFreeAgency() {
@@ -1711,6 +2752,7 @@ async function loadStats() {
   const category = document.getElementById("categoryFilter").value;
   const position = document.getElementById("positionFilter").value;
   const teamFilter = document.getElementById("statsTeamFilter").value;
+  const seasonType = selectedSeasonType();
   let year = document.getElementById("yearFilter").value;
 
   if (scope !== "career" && !year) {
@@ -1719,17 +2761,32 @@ async function loadStats() {
   }
 
   let payload;
+  state.statsCompanionRows = {};
   if (scope === "season") {
     const query = new URLSearchParams({ category });
     if (year) query.set("year", year);
     if (position) query.set("position", position);
     if (teamFilter && teamFilter !== "ALL") query.set("team", teamFilter);
+    query.set("seasonType", seasonType);
     payload = await api(`/api/tables/player-season?${query.toString()}`);
+    if (category === "rushing" || category === "receiving") {
+      const companionQuery = new URLSearchParams(query);
+      companionQuery.set("category", category === "rushing" ? "receiving" : "rushing");
+      const companion = await api(`/api/tables/player-season?${companionQuery.toString()}`);
+      state.statsCompanionRows[category === "rushing" ? "receiving" : "rushing"] = companion.rows || [];
+    }
   } else if (scope === "career") {
     const query = new URLSearchParams({ category });
     if (position) query.set("position", position);
     if (teamFilter && teamFilter !== "ALL") query.set("team", teamFilter);
+    query.set("seasonType", seasonType);
     payload = await api(`/api/tables/player-career?${query.toString()}`);
+    if (category === "rushing" || category === "receiving") {
+      const companionQuery = new URLSearchParams(query);
+      companionQuery.set("category", category === "rushing" ? "receiving" : "rushing");
+      const companion = await api(`/api/tables/player-career?${companionQuery.toString()}`);
+      state.statsCompanionRows[category === "rushing" ? "receiving" : "rushing"] = companion.rows || [];
+    }
   } else {
     const query = new URLSearchParams();
     if (year) query.set("year", year);
@@ -1737,13 +2794,39 @@ async function loadStats() {
     payload = await api(`/api/tables/team-season?${query.toString()}`);
   }
 
-  state.statsRows = payload.rows || [];
+  state.statsRows = shapeStatsRowsForDisplay(payload.rows || [], { scope, category });
   state.statsPage = 1;
   if (state.statsRows[0] && (!state.statsSortKey || !(state.statsSortKey in state.statsRows[0]))) {
     const preferred = ["yds", "td", "tkl", "sacks", "offSn", "defSn", "fgm", "pf", "wins"];
     state.statsSortKey = preferred.find((col) => col in state.statsRows[0]) || Object.keys(state.statsRows[0])[0];
   }
   applyStatsSort();
+}
+
+async function exportSnapshot() {
+  const payload = await api("/api/snapshot/export");
+  const blob = new Blob([`${JSON.stringify(payload.snapshot, null, 2)}\n`], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = payload.fileName || "vsfgm-snapshot.json";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+async function importSnapshot(file) {
+  if (!file) throw new Error("Choose a snapshot file first.");
+  let snapshot = null;
+  try {
+    snapshot = JSON.parse(await file.text());
+  } catch {
+    throw new Error("Invalid snapshot JSON.");
+  }
+  const payload = await api("/api/snapshot/import", { method: "POST", body: { snapshot } });
+  applyDashboard(payload.state);
+  await refreshEverything();
 }
 
 async function loadDraftState() {
@@ -1761,6 +2844,7 @@ async function loadScouting() {
 
 async function loadDepthChart() {
   const teamId = (document.getElementById("depthTeamSelect").value || state.dashboard?.controlledTeamId || "BUF").toUpperCase();
+  const position = document.getElementById("depthPositionSelect").value;
   const [payload, rosterPayload] = await Promise.all([
     api(`/api/depth-chart?team=${encodeURIComponent(teamId)}`),
     api(`/api/roster?team=${encodeURIComponent(teamId)}`)
@@ -1768,6 +2852,7 @@ async function loadDepthChart() {
   state.depthChart = payload.depthChart || null;
   state.depthSnapShare = payload.snapShare || null;
   state.depthRoster = rosterPayload.roster || [];
+  state.depthOrder = [...(state.depthChart?.[position] || [])];
   renderDepthChart();
 }
 
@@ -1833,6 +2918,7 @@ async function refreshEverything() {
   document.getElementById("analyticsYearFilter").value = String(state.dashboard?.currentYear || new Date().getFullYear());
   await Promise.all([
     loadRoster(),
+    loadContractsTeam(),
     loadFreeAgency(),
     loadRetiredPool(),
     loadStats(),
@@ -1875,6 +2961,71 @@ async function runAction(fn, statusText = "Working...") {
   }
 }
 
+async function refreshPostSimulation() {
+  await Promise.all([
+    loadRoster(),
+    loadFreeAgency(),
+    loadRetiredPool(),
+    loadStats(),
+    loadDraftState(),
+    loadScouting(),
+    loadQa(),
+    loadTeamHistory(),
+    loadCalendar(),
+    loadTransactionLog(),
+    loadNews(),
+    loadOwner(),
+    loadPipeline(),
+    loadSimJobs()
+  ]);
+}
+
+async function advanceWeeksSequential(totalWeeks) {
+  const safeWeeks = Math.max(1, Number(totalWeeks) || 1);
+  setSimControl({ active: true, pauseRequested: false, mode: "weeks" });
+  let completed = 0;
+  try {
+    while (completed < safeWeeks) {
+      if (state.simControl.pauseRequested) break;
+      setStatus(`Simulating week ${completed + 1}/${safeWeeks}...`);
+      const response = await api("/api/advance-week", { method: "POST", body: { count: 1 } });
+      applyDashboard(response.state);
+      completed += 1;
+    }
+    await refreshPostSimulation();
+    showToast(state.simControl.pauseRequested ? `Paused after ${completed} week(s)` : "Done");
+  } finally {
+    setSimControl({ active: false, pauseRequested: false, mode: null });
+    setStatus("Ready");
+  }
+}
+
+async function advanceSeasonSequential() {
+  const startYear = state.dashboard?.currentYear || new Date().getFullYear();
+  setSimControl({ active: true, pauseRequested: false, mode: "season" });
+  let steps = 0;
+  try {
+    while (steps < 64) {
+      if (state.simControl.pauseRequested) break;
+      const done =
+        state.dashboard &&
+        state.dashboard.currentYear > startYear &&
+        state.dashboard.phase === "regular-season" &&
+        state.dashboard.currentWeek === 1;
+      if (done) break;
+      setStatus(`Advancing season step ${steps + 1}...`);
+      const response = await api("/api/advance-week", { method: "POST", body: { count: 1 } });
+      applyDashboard(response.state);
+      steps += 1;
+    }
+    await refreshPostSimulation();
+    showToast(state.simControl.pauseRequested ? `Season sim paused after ${steps} step(s)` : "Done");
+  } finally {
+    setSimControl({ active: false, pauseRequested: false, mode: null });
+    setStatus("Ready");
+  }
+}
+
 function bindMenuTabs() {
   document.querySelectorAll(".menu-btn").forEach((button) => {
     button.addEventListener("click", () => activateTab(button.dataset.tab));
@@ -1885,7 +3036,7 @@ function bindEvents() {
   bindMenuTabs();
 
   document.getElementById("backSetupBtn").addEventListener("click", () => {
-    window.location.href = "/";
+    window.location.href = new URL("./", document.baseURI).toString();
   });
 
   document.getElementById("teamSelect").addEventListener("change", (event) =>
@@ -1938,49 +3089,25 @@ function bindEvents() {
   );
 
   document.getElementById("advance4WeeksBtn").addEventListener("click", () =>
-    runAction(async () => {
-      const response = await api("/api/advance-week", { method: "POST", body: { count: 4 } });
-      applyDashboard(response.state);
-      await Promise.all([
-        loadRoster(),
-        loadFreeAgency(),
-        loadRetiredPool(),
-        loadStats(),
-        loadDraftState(),
-        loadScouting(),
-        loadQa(),
-        loadTeamHistory(),
-        loadCalendar(),
-        loadTransactionLog(),
-        loadNews(),
-        loadOwner(),
-        loadPipeline(),
-        loadSimJobs()
-      ]);
-    }, "Advancing 4 weeks...")
+    advanceWeeksSequential(4).catch((error) => {
+      setStatus(`Error: ${error.message}`);
+      showToast(`Error: ${error.message}`);
+      setSimControl({ active: false, pauseRequested: false, mode: null });
+    })
   );
 
   document.getElementById("advanceSeasonBtn").addEventListener("click", () =>
-    runAction(async () => {
-      const response = await api("/api/advance-season", { method: "POST", body: { count: 1 } });
-      applyDashboard(response.state);
-      await Promise.all([
-        loadRoster(),
-        loadFreeAgency(),
-        loadStats(),
-        loadDraftState(),
-        loadScouting(),
-        loadQa(),
-        loadTeamHistory(),
-        loadCalendar(),
-        loadTransactionLog(),
-        loadNews(),
-        loadOwner(),
-        loadPipeline(),
-        loadSimJobs()
-      ]);
-    }, "Advancing season...")
+    advanceSeasonSequential().catch((error) => {
+      setStatus(`Error: ${error.message}`);
+      showToast(`Error: ${error.message}`);
+      setSimControl({ active: false, pauseRequested: false, mode: null });
+    })
   );
+
+  document.getElementById("pauseSimBtn").addEventListener("click", () => {
+    if (!state.simControl.active) return;
+    setSimControl({ pauseRequested: true });
+  });
 
   document.getElementById("refreshBtn").addEventListener("click", () => runAction(refreshEverything, "Refreshing..."));
 
@@ -2032,6 +3159,12 @@ function bindEvents() {
       }
       await Promise.all([loadState(), loadRoster(), loadFreeAgency(), loadDepthChart(), loadTransactionLog(), loadNews()]);
     }, "Processing transaction...");
+  });
+
+  document.getElementById("boxScoreTicker").addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-boxscore-id]");
+    if (!button) return;
+    runAction(() => loadBoxScore(button.dataset.boxscoreId), "Loading box score...");
   });
 
   document.getElementById("retiredTable").addEventListener("click", (event) => {
@@ -2088,8 +3221,7 @@ function bindEvents() {
     }, "Clearing designation...")
   );
 
-  const moveRosterBoard = (direction) => {
-    const playerId = document.getElementById("boardPlayerId").value.trim();
+  const moveRosterBoard = (playerId, direction) => {
     if (!playerId) return;
     const index = state.roster.findIndex((player) => player.id === playerId);
     if (index < 0) return;
@@ -2100,8 +3232,12 @@ function bindEvents() {
     state.roster = copy;
     renderRosterBoard();
   };
-  document.getElementById("boardMoveUpBtn").addEventListener("click", () => moveRosterBoard(-1));
-  document.getElementById("boardMoveDownBtn").addEventListener("click", () => moveRosterBoard(1));
+  document.getElementById("boardPlayerId")?.closest(".row")?.classList.add("hidden");
+  document.getElementById("rosterBoardTable").addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-roster-board-move]");
+    if (!button) return;
+    moveRosterBoard(button.dataset.playerId, button.dataset.rosterBoardMove === "up" ? -1 : 1);
+  });
 
   document.getElementById("tradeBtn").addEventListener("click", () =>
     runAction(async () => {
@@ -2189,86 +3325,115 @@ function bindEvents() {
     }, "Evaluating trade wizard...")
   );
 
-  document.getElementById("resignBtn").addEventListener("click", () =>
+  document.getElementById("loadContractsBtn").addEventListener("click", () =>
+    runAction(loadContractsTeam, "Loading contracts...")
+  );
+  document.getElementById("contractsTeamSelect").addEventListener("change", () =>
+    runAction(loadContractsTeam, "Loading contracts...")
+  );
+
+  document.getElementById("contractsResignBtn").addEventListener("click", () =>
     runAction(async () => {
+      const player = getSelectedContractPlayer();
+      if (!player) throw new Error("Select a player first.");
       await api("/api/contracts/resign", {
         method: "POST",
         body: {
-          teamId: state.dashboard?.controlledTeamId,
-          playerId: document.getElementById("resignPlayerId").value.trim(),
-          years: Number(document.getElementById("resignYears").value || 3)
+          teamId: state.contractTeamId || state.dashboard?.controlledTeamId,
+          playerId: player.id,
+          years: Number(document.getElementById("contractYearsInput").value || 3)
         }
       });
-      await Promise.all([loadState(), loadRoster(), loadTransactionLog()]);
+      setContractActionText(`${player.name} re-signed successfully.`);
+      await Promise.all([loadState(), loadRoster(), loadContractsTeam(), loadTransactionLog()]);
     }, "Re-signing...")
   );
 
-  document.getElementById("restructureBtn").addEventListener("click", () =>
+  document.getElementById("contractsRestructureBtn").addEventListener("click", () =>
     runAction(async () => {
+      const player = getSelectedContractPlayer();
+      if (!player) throw new Error("Select a player first.");
       await api("/api/contracts/restructure", {
         method: "POST",
         body: {
-          teamId: state.dashboard?.controlledTeamId,
-          playerId: document.getElementById("restructurePlayerId").value.trim()
+          teamId: state.contractTeamId || state.dashboard?.controlledTeamId,
+          playerId: player.id
         }
       });
-      await Promise.all([loadState(), loadRoster(), loadTransactionLog()]);
+      setContractActionText(`${player.name} restructured the current deal.`);
+      await Promise.all([loadState(), loadRoster(), loadContractsTeam(), loadTransactionLog()]);
     }, "Restructuring...")
   );
 
   document.getElementById("franchiseTagBtn").addEventListener("click", () =>
     runAction(async () => {
+      const player = getSelectedContractPlayer();
+      if (!player) throw new Error("Select a player first.");
       await api("/api/contracts/franchise-tag", {
         method: "POST",
         body: {
-          teamId: state.dashboard?.controlledTeamId,
-          playerId: document.getElementById("tagPlayerId").value.trim()
+          teamId: state.contractTeamId || state.dashboard?.controlledTeamId,
+          playerId: player.id
         }
       });
-      await Promise.all([loadState(), loadRoster(), loadTransactionLog()]);
+      setContractActionText(`${player.name} was franchise tagged.`);
+      await Promise.all([loadState(), loadRoster(), loadContractsTeam(), loadTransactionLog()]);
     }, "Applying franchise tag...")
   );
 
   document.getElementById("fifthOptionBtn").addEventListener("click", () =>
     runAction(async () => {
+      const player = getSelectedContractPlayer();
+      if (!player) throw new Error("Select a player first.");
       await api("/api/contracts/fifth-year-option", {
         method: "POST",
         body: {
-          teamId: state.dashboard?.controlledTeamId,
-          playerId: document.getElementById("optionPlayerId").value.trim()
+          teamId: state.contractTeamId || state.dashboard?.controlledTeamId,
+          playerId: player.id
         }
       });
-      await Promise.all([loadState(), loadRoster(), loadTransactionLog()]);
+      setContractActionText(`${player.name}'s fifth-year option was exercised.`);
+      await Promise.all([loadState(), loadRoster(), loadContractsTeam(), loadTransactionLog()]);
     }, "Applying fifth-year option...")
   );
 
-  document.getElementById("negotiateBtn").addEventListener("click", () =>
+  document.getElementById("contractsNegotiateBtn").addEventListener("click", () =>
     runAction(async () => {
-      await api("/api/contracts/negotiate", {
+      const player = getSelectedContractPlayer();
+      if (!player) throw new Error("Select a player first.");
+      const response = await api("/api/contracts/negotiate", {
         method: "POST",
         body: {
-          teamId: state.dashboard?.controlledTeamId,
-          playerId: document.getElementById("negotiatePlayerId").value.trim(),
-          years: Number(document.getElementById("negotiateYears").value || 0) || null,
-          salary: Number(document.getElementById("negotiateSalary").value || 0) || null
+          teamId: state.contractTeamId || state.dashboard?.controlledTeamId,
+          playerId: player.id,
+          years: Number(document.getElementById("contractYearsInput").value || 0) || null,
+          salary: Number(document.getElementById("contractSalaryInput").value || 0) || null
         }
       });
-      await Promise.all([loadState(), loadRoster(), loadTransactionLog(), loadNegotiations()]);
+      if (response.countered) {
+        document.getElementById("contractYearsInput").value = response.counterOffer?.years || "";
+        document.getElementById("contractSalaryInput").value = response.counterOffer?.salary || "";
+        setContractActionText(
+          `${player.name} countered at ${response.counterOffer?.years}y / ${fmtMoney(response.counterOffer?.salary || 0)}. Morale ${response.morale}, motivation ${response.motivation}.`
+        );
+      } else {
+        setContractActionText(`${player.name} accepted the offer. Morale ${response.morale}, motivation ${response.motivation}.`);
+      }
+      await Promise.all([loadState(), loadRoster(), loadContractsTeam(), loadTransactionLog(), loadNegotiations(state.contractTeamId)]);
     }, "Negotiating contract...")
   );
 
   document.getElementById("negotiationTable").addEventListener("click", (event) => {
     const button = event.target.closest("button[data-negotiate-id]");
     if (!button) return;
-    document.getElementById("negotiatePlayerId").value = button.dataset.negotiateId || "";
+    setSelectedContractPlayer(button.dataset.negotiateId || "");
   });
 
   document.getElementById("tagEligibleTable").addEventListener("click", (event) => {
     const button = event.target.closest("button[data-contract-fill]");
     if (!button) return;
     const playerId = button.dataset.playerId || "";
-    if (button.dataset.contractFill === "tag") document.getElementById("tagPlayerId").value = playerId;
-    if (button.dataset.contractFill === "option") document.getElementById("optionPlayerId").value = playerId;
+    setSelectedContractPlayer(playerId);
     updateContractPreview();
   });
 
@@ -2276,15 +3441,60 @@ function bindEvents() {
     const button = event.target.closest("button[data-contract-fill]");
     if (!button) return;
     const playerId = button.dataset.playerId || "";
-    if (button.dataset.contractFill === "tag") document.getElementById("tagPlayerId").value = playerId;
-    if (button.dataset.contractFill === "option") document.getElementById("optionPlayerId").value = playerId;
+    setSelectedContractPlayer(playerId);
     updateContractPreview();
   });
-
-  document.getElementById("tagPlayerId").addEventListener("input", updateContractPreview);
-  document.getElementById("optionPlayerId").addEventListener("input", updateContractPreview);
+  document.getElementById("expiringTable").addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-contract-select]");
+    if (!button) return;
+    setSelectedContractPlayer(button.dataset.contractSelect || "");
+  });
+  document.getElementById("contractsRosterTable").addEventListener("click", (event) => {
+    const selectButton = event.target.closest("button[data-contract-select]");
+    if (selectButton) {
+      setSelectedContractPlayer(selectButton.dataset.contractSelect || "");
+      return;
+    }
+    const actionButton = event.target.closest("button[data-contract-action]");
+    if (!actionButton) return;
+    const playerId = actionButton.dataset.playerId || "";
+    setSelectedContractPlayer(playerId, { preserveInputs: true });
+    if (actionButton.dataset.contractAction === "trade") {
+      queueTradePlayer(playerId);
+      return;
+    }
+    if (actionButton.dataset.contractAction === "block") {
+      toggleTradeBlockPlayer(playerId);
+      setContractActionText(state.tradeBlockIds.includes(playerId) ? "Added to trade block." : "Removed from trade block.");
+    }
+  });
+  document.getElementById("tradeBlockTable").addEventListener("click", (event) => {
+    const actionButton = event.target.closest("button[data-contract-action]");
+    if (!actionButton) return;
+    const playerId = actionButton.dataset.playerId || "";
+    if (actionButton.dataset.contractAction === "trade") {
+      queueTradePlayer(playerId);
+      return;
+    }
+    toggleTradeBlockPlayer(playerId);
+    setContractActionText("Removed from trade block.");
+  });
+  document.getElementById("contractsTradeBtn").addEventListener("click", () => {
+    const player = getSelectedContractPlayer();
+    if (!player) return;
+    queueTradePlayer(player.id);
+  });
+  document.getElementById("contractsTradeBlockBtn").addEventListener("click", () => {
+    const player = getSelectedContractPlayer();
+    if (!player) return;
+    toggleTradeBlockPlayer(player.id);
+    setContractActionText(state.tradeBlockIds.includes(player.id) ? `${player.name} added to the trade block.` : `${player.name} removed from the trade block.`);
+  });
 
   document.getElementById("loadDepthBtn").addEventListener("click", () => runAction(loadDepthChart, "Loading depth chart..."));
+  ["depthTeamSelect", "depthPositionSelect"].forEach((id) => {
+    document.getElementById(id).addEventListener("change", () => runAction(loadDepthChart, "Loading depth chart..."));
+  });
   document.getElementById("saveDepthBtn").addEventListener("click", () =>
     runAction(async () => {
       await api("/api/depth-chart", {
@@ -2292,12 +3502,20 @@ function bindEvents() {
         body: {
           teamId: document.getElementById("depthTeamSelect").value,
           position: document.getElementById("depthPositionSelect").value,
-          playerIds: parseIds(document.getElementById("depthIdsInput").value)
+          playerIds: state.depthOrder
         }
       });
       await loadDepthChart();
     }, "Saving depth chart...")
   );
+  document.getElementById("depthTable").addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-depth-move]");
+    if (!button) return;
+    const playerId = button.dataset.playerId;
+    const delta = button.dataset.depthMove === "up" ? -1 : 1;
+    state.depthOrder = moveIdWithinList(state.depthOrder, playerId, delta);
+    renderDepthChart();
+  });
 
   document.getElementById("prepareDraftBtn").addEventListener("click", () =>
     runAction(async () => {
@@ -2320,32 +3538,45 @@ function bindEvents() {
     }, "Finishing draft...")
   );
 
+  document.getElementById("cpuDraftOneBtn").addEventListener("click", () =>
+    runAction(async () => {
+      await api("/api/draft/cpu", { method: "POST", body: { picks: 1, untilUserPick: false } });
+      await Promise.all([loadState(), loadDraftState(), loadScouting(), loadRoster(), loadTransactionLog()]);
+    }, "Simulating one pick...")
+  );
+
   document.getElementById("userPickBtn").addEventListener("click", () =>
     runAction(async () => {
+      if (!state.selectedDraftProspectId) throw new Error("Select a prospect first.");
       await api("/api/draft/user-pick", {
         method: "POST",
-        body: { playerId: document.getElementById("userPickPlayerId").value.trim() }
+        body: { playerId: state.selectedDraftProspectId }
       });
       await Promise.all([loadState(), loadDraftState(), loadScouting(), loadRoster(), loadTransactionLog()]);
     }, "Submitting user pick...")
   );
 
+  document.getElementById("draftAvailableTable").addEventListener("click", (event) => {
+    const selectButton = event.target.closest("button[data-draft-select-id]");
+    if (selectButton) {
+      state.selectedDraftProspectId = selectButton.dataset.draftSelectId || null;
+      renderDraft();
+      return;
+    }
+    const button = event.target.closest("button[data-draft-player-id]");
+    if (!button) return;
+    state.selectedDraftProspectId = button.dataset.draftPlayerId || null;
+    runAction(async () => {
+      await api("/api/draft/user-pick", {
+        method: "POST",
+        body: { playerId: button.dataset.draftPlayerId }
+      });
+      await Promise.all([loadState(), loadDraftState(), loadScouting(), loadRoster(), loadTransactionLog()]);
+    }, "Drafting player...");
+  });
+
   document.getElementById("loadScoutingBtn").addEventListener("click", () =>
     runAction(loadScouting, "Loading scouting board...")
-  );
-
-  document.getElementById("allocateScoutingBtn").addEventListener("click", () =>
-    runAction(async () => {
-      await api("/api/scouting/allocate", {
-        method: "POST",
-        body: {
-          teamId: state.dashboard?.controlledTeamId,
-          playerId: document.getElementById("scoutPlayerId").value.trim(),
-          points: Number(document.getElementById("scoutPointsInput").value || 10)
-        }
-      });
-      await loadScouting();
-    }, "Scouting prospect...")
   );
 
   document.getElementById("lockBoardBtn").addEventListener("click", () =>
@@ -2354,12 +3585,50 @@ function bindEvents() {
         method: "POST",
         body: {
           teamId: state.dashboard?.controlledTeamId,
-          playerIds: parseIds(document.getElementById("lockBoardIdsInput").value)
+          playerIds: state.scoutingBoardDraft.slice(0, 20)
         }
       });
       await loadScouting();
     }, "Locking board...")
   );
+  document.getElementById("scoutingTable").addEventListener("click", (event) => {
+    const scoutButton = event.target.closest("button[data-scout-player-id]");
+    if (scoutButton) {
+      runAction(async () => {
+        await api("/api/scouting/allocate", {
+          method: "POST",
+          body: {
+            teamId: state.dashboard?.controlledTeamId,
+            playerId: scoutButton.dataset.scoutPlayerId,
+            points: Number(document.getElementById("scoutPointsInput").value || 10)
+          }
+        });
+        await loadScouting();
+      }, "Scouting prospect...");
+      return;
+    }
+
+    const toggleButton = event.target.closest("button[data-board-toggle]");
+    if (toggleButton) {
+      const playerId = toggleButton.dataset.playerId;
+      if (toggleButton.dataset.boardToggle === "add") {
+        if (!state.scoutingBoardDraft.includes(playerId) && state.scoutingBoardDraft.length < 20) {
+          state.scoutingBoardDraft = [...state.scoutingBoardDraft, playerId];
+        }
+      } else {
+        state.scoutingBoardDraft = state.scoutingBoardDraft.filter((id) => id !== playerId);
+      }
+      renderScouting();
+      return;
+    }
+
+    const moveButton = event.target.closest("button[data-board-move]");
+    if (moveButton) {
+      const delta = moveButton.dataset.boardMove === "up" ? -1 : 1;
+      state.scoutingBoardDraft = moveIdWithinList(state.scoutingBoardDraft, moveButton.dataset.playerId, delta);
+      renderScouting();
+    }
+  });
 
   document.getElementById("scopeFilter").addEventListener("change", () =>
     runAction(async () => {
@@ -2370,7 +3639,22 @@ function bindEvents() {
   ["categoryFilter", "positionFilter", "statsTeamFilter", "yearFilter"].forEach((id) => {
     document.getElementById(id).addEventListener("change", () => runAction(loadStats, "Loading stats..."));
   });
+  document.getElementById("statsSeasonTypeFilter").addEventListener("change", () => runAction(loadStats, "Loading stats..."));
+  document.getElementById("playerSeasonTypeFilter").addEventListener("change", () => {
+    if (!state.activePlayerId) return;
+    runAction(() => loadPlayerModal(state.activePlayerId), "Loading player...");
+  });
   document.getElementById("statsVirtualizedToggle").addEventListener("change", () => applyStatsSort());
+  document.getElementById("statsColumnFilters").addEventListener("change", (event) => {
+    const input = event.target.closest("input[data-stats-column]");
+    if (!input) return;
+    const column = input.dataset.statsColumn;
+    const next = new Set(state.statsHiddenColumns);
+    if (input.checked) next.delete(column);
+    else next.add(column);
+    saveStatsHiddenColumns([...next]);
+    applyStatsSort();
+  });
   document.getElementById("comparePlayersBtn").addEventListener("click", () =>
     runAction(loadComparePlayers, "Comparing players...")
   );
@@ -2587,6 +3871,20 @@ function bindEvents() {
     }, "Deleting save...")
   );
 
+  document.getElementById("exportSnapshotBtn").addEventListener("click", () =>
+    runAction(exportSnapshot, "Exporting snapshot...")
+  );
+  document.getElementById("importSnapshotBtn").addEventListener("click", () =>
+    document.getElementById("snapshotImportInput").click()
+  );
+  document.getElementById("snapshotImportInput").addEventListener("change", (event) => {
+    const [file] = event.target.files || [];
+    runAction(async () => {
+      await importSnapshot(file);
+      event.target.value = "";
+    }, "Importing snapshot...");
+  });
+
   document.getElementById("loadQaBtn").addEventListener("click", () => runAction(loadQa, "Loading QA report..."));
 
   const openCommandPalette = () => {
@@ -2597,36 +3895,13 @@ function bindEvents() {
   const closeCommandPalette = () => {
     document.getElementById("commandPalette").classList.add("hidden");
   };
-  document.getElementById("commandPaletteBtn").addEventListener("click", openCommandPalette);
-  document.getElementById("closeCommandPaletteBtn").addEventListener("click", closeCommandPalette);
-  document.getElementById("commandInput").addEventListener("input", (event) => {
-    state.commandFilter = event.target.value || "";
-    renderCommandPalette();
-  });
-  document.getElementById("commandTable").addEventListener("click", (event) => {
-    const button = event.target.closest("button[data-command-id]");
-    if (!button) return;
-    const id = button.dataset.commandId;
-    closeCommandPalette();
-    if (id === "overview") activateTab("overviewTab");
-    if (id === "roster") activateTab("rosterTab");
-    if (id === "transactions") activateTab("transactionsTab");
-    if (id === "stats") activateTab("statsTab");
-    if (id === "rules") activateTab("rulesTab");
-    if (id === "settings") activateTab("settingsTab");
-    if (id === "advance-week") document.getElementById("advanceWeekBtn").click();
-    if (id === "refresh") document.getElementById("refreshBtn").click();
-  });
+  document.getElementById("closeCommandPaletteBtn")?.addEventListener("click", closeCommandPalette);
 
   document.addEventListener("keydown", (event) => {
-    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
-      event.preventDefault();
-      openCommandPalette();
-      return;
-    }
     if (event.key === "Escape") {
       closeCommandPalette();
       closePlayerModal();
+      closeBoxScoreModal();
       return;
     }
     if (event.key.toLowerCase() === "r" && !event.ctrlKey && !event.metaKey && !event.altKey) {
@@ -2644,6 +3919,8 @@ function bindEvents() {
     }
     const modal = document.getElementById("playerModal");
     if (event.target === modal) closePlayerModal();
+    const boxScoreModal = document.getElementById("boxScoreModal");
+    if (event.target === boxScoreModal) closeBoxScoreModal();
     const commandModal = document.getElementById("commandPalette");
     if (event.target === commandModal) closeCommandPalette();
   });
@@ -2651,9 +3928,13 @@ function bindEvents() {
   document.getElementById("closePlayerModalBtn").addEventListener("click", () => {
     closePlayerModal();
   });
+  document.getElementById("closeBoxScoreModalBtn").addEventListener("click", () => {
+    closeBoxScoreModal();
+  });
 }
 
 async function init() {
+  state.statsHiddenColumns = readStatsHiddenColumns();
   bindEvents();
   activateTab("overviewTab");
   await refreshEverything();

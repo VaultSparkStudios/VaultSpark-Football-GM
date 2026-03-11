@@ -3,7 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>VaultSpark Football GM - Season Setup</title>
+    <meta name="vsfgm-runtime-default" content="server" />
+    <title>VaultSpark Football GM - Main Menu</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body class="setup-body">
@@ -16,6 +17,15 @@
           <button id="continueActiveBtn" data-testid="continue-active-btn">Continue Active League</button>
           <button id="resumeLatestBtn" data-testid="resume-latest-btn">Resume Latest Save</button>
           <span id="activeLeagueText" class="small">Checking active session...</span>
+        </div>
+        <div class="row compact">
+          <label>Runtime
+            <select id="runtimeModeSelect">
+              <option value="server">Server-backed</option>
+              <option value="client">Client-only (Beta)</option>
+            </select>
+          </label>
+          <span class="small">Client-only mode stores leagues in this browser and does not use filesystem path imports.</span>
         </div>
         <div class="cards">
           <article>
@@ -43,10 +53,16 @@
             <input id="startYearInput" data-testid="start-year-input" type="number" />
           </label>
           <label>Mode
-            <select id="modeInput" data-testid="mode-input">
-              <option value="drive">Drive</option>
-              <option value="play">Play</option>
-            </select>
+            <div class="row compact">
+              <select id="modeInput" data-testid="mode-input">
+                <option value="drive">Drive</option>
+                <option value="play">Play</option>
+              </select>
+              <span id="modeHelpTip" class="chip" title="Drive sim resolves games possession-by-possession for faster season flow. Play sim resolves more individual plays for more granular stat and box-score variance.">Drive vs Play</span>
+            </div>
+            <div id="modeHelpText" class="small">
+              Drive is faster and more abstract. Play uses more granular play-level variance.
+            </div>
           </label>
           <label>Era Profile
             <select id="eraProfileInput">
@@ -106,6 +122,11 @@
         <div class="table-wrap">
           <table id="backupsTable" data-testid="backups-table"></table>
         </div>
+      </section>
+
+      <section class="setup-card">
+        <h2>Setup Guide</h2>
+        <div id="setupGuideContent" class="stack small"></div>
       </section>
     </main>
     <script type="module" src="./setup.js"></script>

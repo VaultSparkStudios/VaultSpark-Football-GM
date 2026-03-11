@@ -1,3 +1,5 @@
+import { createApiClient, getRuntimeMode, setRuntimeMode } from "./lib/api/createApiClient.js";
+
 const state = {
   currentYear: new Date().getFullYear(),
   saves: [],
@@ -6,18 +8,19 @@ const state = {
   backups: []
 };
 
-async function api(path, options = {}) {
-  const response = await fetch(path, {
-    method: options.method || "GET",
-    headers: { "Content-Type": "application/json" },
-    body: options.body ? JSON.stringify(options.body) : undefined
-  });
-  const payload = await response.json();
-  if (!response.ok || payload.ok === false) {
-    throw new Error(payload.error || `Request failed: ${response.status}`);
-  }
-  return payload;
-}
+const api = createApiClient();
+
+const MODE_HELP = {
+  drive: "Drive resolves games possession-by-possession. It is faster for long sims and keeps weekly progression moving.",
+  play: "Play resolves more individual play outcomes. It is slower, but gives more granular stat swings and box-score detail."
+};
+
+const SETUP_GUIDE_ROWS = [
+  "Choose `Drive` for faster weekly simulation or `Play` for more granular play-level outcomes.",
+  "Era profiles change league tendencies: `Modern Pass` pushes more passing volume, `Balanced` stays near league-average, and `Legacy` tilts toward a lower-tempo run-heavy environment.",
+  "Randomized leagues now use one real U.S. city plus one generated nickname per team for a single clean identity in each save.",
+  "After league creation, the controlled team becomes the default roster and depth-chart focus in the franchise view."
+];
 
 function escapeHtml(value) {
   return String(value)
@@ -33,6 +36,40 @@ function setStatus(text) {
   if (el) el.textContent = text;
 }
 
+function pageUrl(page) {
+  return new URL(`./${page}`, document.baseURI).toString();
+}
+
+function teamCode(team) {
+  return team?.abbrev || team?.id || "-";
+}
+
+function applyRuntimeModeUi() {
+  const select = document.getElementById("runtimeModeSelect");
+  if (!select) return;
+  const mode = getRuntimeMode();
+  select.value = mode;
+  const pathInput = document.getElementById("pfrPathInput");
+  const profileInput = document.getElementById("profilePathInput");
+  const disabled = mode === "client";
+  if (pathInput) pathInput.disabled = disabled;
+  if (profileInput) profileInput.disabled = disabled;
+}
+
+function renderSetupGuide() {
+  const box = document.getElementById("setupGuideContent");
+  if (!box) return;
+  box.innerHTML = SETUP_GUIDE_ROWS.map((row) => `<div class="record">${escapeHtml(row)}</div>`).join("");
+}
+
+function updateModeHelp() {
+  const mode = document.getElementById("modeInput")?.value || "drive";
+  const text = document.getElementById("modeHelpText");
+  const tip = document.getElementById("modeHelpTip");
+  if (text) text.textContent = MODE_HELP[mode] || MODE_HELP.drive;
+  if (tip) tip.title = MODE_HELP[mode] || MODE_HELP.drive;
+}
+
 function renderTeams() {
   const select = document.getElementById("teamSelect");
   if (!select) return;
@@ -43,7 +80,7 @@ function renderTeams() {
   }
 
   select.innerHTML = state.teams
-    .map((team) => `<option value="${escapeHtml(team.id)}">${escapeHtml(team.id)} - ${escapeHtml(team.name)}</option>`)
+    .map((team) => `<option value="${escapeHtml(team.id)}">${escapeHtml(teamCode(team))} - ${escapeHtml(team.name)}</option>`)
     .join("");
 
   if (state.teams.some((team) => team.id === "BUF")) {
@@ -60,8 +97,10 @@ function renderActiveLeague(activeLeague) {
     return;
   }
 
-  const team = activeLeague.controlledTeamId || "-";
-  text.textContent = `Active: ${activeLeague.currentYear} W${activeLeague.currentWeek} (${activeLeague.phase}) Team ${team}`;
+  const team = activeLeague.controlledTeamAbbrev || activeLeague.controlledTeamId || "-";
+  const name = activeLeague.controlledTeamName ? ` - ${activeLeague.controlledTeamName}` : "";
+  const mode = activeLeague.mode ? ` | ${activeLeague.mode}` : "";
+  text.textContent = `Active: ${activeLeague.currentYear} W${activeLeague.currentWeek} (${activeLeague.phase}) Team ${team}${name}${mode}`;
   button.disabled = false;
 }
 
@@ -79,6 +118,7 @@ function renderSaves() {
           save.slot,
           meta.currentYear,
           meta.phase,
+          meta.controlledTeamAbbrev,
           meta.controlledTeamId,
           meta.controlledTeamName
         ]
@@ -98,7 +138,10 @@ function renderSaves() {
     .map((save) => {
       const meta = save.meta || {};
       const season = meta.currentYear ? `${meta.currentYear} W${meta.currentWeek || 1}` : "-";
-      const team = meta.controlledTeamId ? `${meta.controlledTeamId}${meta.controlledTeamName ? ` - ${meta.controlledTeamName}` : ""}` : "-";
+      const teamCodeValue = meta.controlledTeamAbbrev || meta.controlledTeamId || "-";
+      const team = meta.controlledTeamId
+        ? `${teamCodeValue}${meta.controlledTeamName ? ` - ${meta.controlledTeamName}` : ""}`
+        : "-";
       return (
         `<tr>` +
         `<td>${escapeHtml(save.slot)}</td>` +
@@ -155,11 +198,12 @@ function renderBackups() {
 }
 
 async function loadSetup() {
-  const [init, backupsPayload] = await Promise.all([api("/api/setup/init"), api("/api/backups")]);
+  applyRuntimeModeUi();
+  const init = await api("/api/setup/init");
   state.currentYear = init.currentYear;
   state.saves = init.saves || [];
   state.teams = init.teams || [];
-  state.backups = backupsPayload.slots || [];
+  state.backups = init.backups || [];
 
   document.getElementById("seedInput").value = Date.now();
   document.getElementById("startYearInput").value = init.currentYear;
@@ -168,6 +212,8 @@ async function loadSetup() {
   renderActiveLeague(init.activeLeague);
   renderSaves();
   renderBackups();
+  renderSetupGuide();
+  updateModeHelp();
 }
 
 async function createLeague() {
@@ -188,19 +234,19 @@ async function createLeague() {
       realismProfilePath: document.getElementById("profilePathInput").value.trim() || null
     }
   });
-  window.location.href = "/game.html";
+  window.location.href = pageUrl("game.html");
 }
 
 async function resumeSlot(slot) {
   setStatus(`Loading ${slot}...`);
   await api("/api/saves/load", { method: "POST", body: { slot } });
-  window.location.href = "/game.html";
+  window.location.href = pageUrl("game.html");
 }
 
 async function resumeBackup(slot) {
   setStatus(`Restoring backup ${slot}...`);
   await api("/api/backups/load", { method: "POST", body: { slot } });
-  window.location.href = "/game.html";
+  window.location.href = pageUrl("game.html");
 }
 
 async function deleteSlot() {
@@ -224,6 +270,13 @@ async function deleteBackupSlot() {
 }
 
 function bindEvents() {
+  document.getElementById("runtimeModeSelect")?.addEventListener("change", (event) => {
+    const mode = setRuntimeMode(event.target.value);
+    applyRuntimeModeUi();
+    setStatus(mode === "client" ? "Client-only mode enabled" : "Server-backed mode enabled");
+  });
+  document.getElementById("modeInput")?.addEventListener("change", updateModeHelp);
+
   const applyPreset = (preset) => {
     if (preset === "modern") {
       document.getElementById("modeInput").value = "play";
@@ -264,7 +317,7 @@ function bindEvents() {
   });
 
   document.getElementById("continueActiveBtn").addEventListener("click", () => {
-    window.location.href = "/game.html";
+    window.location.href = pageUrl("game.html");
   });
 
   document.getElementById("resumeLatestBtn").addEventListener("click", async () => {
