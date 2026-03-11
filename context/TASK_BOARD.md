@@ -2,8 +2,8 @@
 
 ## Now
 - Measure any remaining setup/main-menu latency after the backup-deferral pass, especially active-session checks
-- Generate abbreviations from randomized city/team names instead of fixed NFL IDs
-- Smoke the updated setup/startup, depth-chart, and `Play`-mode flows in any remaining manual QA scenarios if needed
+- Remove the remaining raw-ID dependence from roster/admin and other commissioner-facing flows
+- Smoke the updated setup/startup, team-identity, depth-chart, and `Play`-mode flows in any remaining manual QA scenarios if needed
 
 ## Next
 - Decide whether to restore the parked realism/runtime stash onto a separate branch or continue keeping it isolated

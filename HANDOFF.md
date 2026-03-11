@@ -68,6 +68,7 @@ VaultSpark Football GM
   - rules tab and game footer now include a fuller user guide, with the footer guide moved behind a button-driven modal
   - game-page startup now loads the core dashboard first and hydrates heavier panels in the background so `Play` mode no longer looks hung on entry
   - setup init now defers backup loading on first open, and normal save listing skips backup metadata work
+  - user-facing schedule/calendar/ticker/transaction/pick/player displays now resolve team IDs to generated team abbreviations instead of showing legacy NFL IDs
 - Generated presentation work:
   - generated teams now use randomized names
   - generated players now carry deterministic physical/body data and `faceSeed`
@@ -179,7 +180,6 @@ VaultSpark Football GM
 
 ## Near-Term Priorities
 1. Finish the immediate UX/runtime batch:
-   - generate abbreviations from randomized city/team names instead of fixed NFL IDs
    - measure and reduce any remaining setup/main-menu load time, especially active-league checks
    - remove remaining raw-ID dependence from roster/admin forms
    - continue polishing draft/scouting presentation and board workflow

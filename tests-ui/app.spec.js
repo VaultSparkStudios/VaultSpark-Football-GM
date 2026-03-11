@@ -28,6 +28,16 @@ async function firstTableCell(page, selector, columnIndex = 1) {
 test("create league, advance week, and open player modal", async ({ page }) => {
   await createLeagueFromSetup(page);
 
+  const teamOptions = await page.locator("#teamSelect option").evaluateAll((options) =>
+    options
+      .map((option) => option.textContent?.split(" - ")[0]?.trim())
+      .filter(Boolean)
+  );
+  const scheduleAway = ((await page.locator("#scheduleTable tr:nth-child(2) td:nth-child(1)").textContent()) || "").trim();
+  const scheduleHome = ((await page.locator("#scheduleTable tr:nth-child(2) td:nth-child(2)").textContent()) || "").trim();
+  expect(teamOptions).toContain(scheduleAway);
+  expect(teamOptions).toContain(scheduleHome);
+
   const before = parseWeek(await page.locator("#yearCard").textContent());
   await page.click("#advanceWeekBtn");
   await waitGameReady(page);

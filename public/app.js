@@ -268,6 +268,20 @@ function teamName(teamId) {
   return state.dashboard?.teams?.find((team) => team.id === teamId)?.name || teamId;
 }
 
+function teamByCode(teamId) {
+  return state.dashboard?.teams?.find((team) => team.id === teamId) || null;
+}
+
+function teamCode(teamId) {
+  if (!teamId || ["FA", "WAIVER", "TIE", "TBD", "ALL"].includes(teamId)) return teamId || "-";
+  return teamByCode(teamId)?.abbrev || teamId;
+}
+
+function teamDisplayFromId(teamId) {
+  const team = teamByCode(teamId);
+  return team ? `${team.abbrev || team.id} - ${team.name}` : teamId || "-";
+}
+
 function teamDisplayLabel(team) {
   return `${team?.abbrev || team?.id || "-"} - ${team?.name || "-"}`;
 }
@@ -752,9 +766,9 @@ function formatTradeList(rows = []) {
 
 function formatTransactionDetails(entry) {
   const d = entry.details || {};
-  if (entry.type === "signing") return `from ${d.from || "FA"} | cap ${fmtMoney(d.capHit)} | ${d.yearsRemaining || 0}y`;
+  if (entry.type === "signing") return `from ${teamCode(d.from || "FA")} | cap ${fmtMoney(d.capHit)} | ${d.yearsRemaining || 0}y`;
   if (entry.type === "release") {
-    const wire = d.toWaivers ? "waivers" : d.destination || "FA";
+    const wire = d.toWaivers ? "waivers" : teamCode(d.destination || "FA");
     return `to ${wire} | dead now ${fmtMoney(d.deadCapCurrentYear)} | dead next ${fmtMoney(d.deadCapNextYear)}`;
   }
   if (entry.type === "trade") return `A: ${formatTradeList(d.fromA)} | B: ${formatTradeList(d.fromB)}`;
@@ -771,8 +785,8 @@ function formatTransactionDetails(entry) {
   if (entry.type === "staff-update") return `${d.role || ""} ${d.name || ""}`;
   if (entry.type === "owner-update") return `ticket ${d.ticketPrice || "-"} | staff budget ${fmtMoney(d.staffBudget || 0)}`;
   if (entry.type === "practice-squad-move") return `${d.from || "active"} -> ${d.to || "active"}`;
-  if (entry.type === "retirement-override") return `team ${d.teamId || "FA"} | min win ${Math.round((d.minWinningPct || 0.55) * 100)}%`;
-  if (entry.type === "championship") return `beat ${d.runnerUp || "-"} | ${d.score || ""}`;
+  if (entry.type === "retirement-override") return `team ${teamCode(d.teamId || "FA")} | min win ${Math.round((d.minWinningPct || 0.55) * 100)}%`;
+  if (entry.type === "championship") return `beat ${teamCode(d.runnerUp || "-")} | ${d.score || ""}`;
   const text = JSON.stringify(d);
   return text.length > 120 ? `${text.slice(0, 117)}...` : text;
 }
@@ -929,7 +943,7 @@ function renderLeaders() {
       return {
         rk: index + 1,
         player: row.player,
-        tm: row.tm,
+        tm: teamCode(row.tm),
         pos: row.pos,
         yds: row.yds,
         td: row.td,
@@ -942,7 +956,7 @@ function renderLeaders() {
       return {
         rk: index + 1,
         player: row.player,
-        tm: row.tm,
+        tm: teamCode(row.tm),
         pos: row.pos,
         yds: row.yds,
         td: row.td,
@@ -954,7 +968,7 @@ function renderLeaders() {
     return {
       rk: index + 1,
       player: row.player,
-      tm: row.tm,
+      tm: teamCode(row.tm),
       pos: row.pos,
       yds: row.yds,
       td: row.td,
@@ -982,10 +996,10 @@ function renderSchedule() {
   }
   weekText.textContent = `Week ${schedule.week} (${schedule.played ? "Played" : "Upcoming"})`;
   const rows = (schedule.games || []).map((game) => ({
-    away: game.awayTeamId,
-    home: game.homeTeamId,
+    away: teamCode(game.awayTeamId),
+    home: teamCode(game.homeTeamId),
     score: game.played ? `${game.awayScore}-${game.homeScore}` : "-",
-    winner: game.played ? (game.isTie ? "TIE" : game.winnerId || "") : "TBD"
+    winner: game.played ? (game.isTie ? "TIE" : teamCode(game.winnerId) || "") : "TBD"
   }));
   renderTable("scheduleTable", rows);
 }
@@ -1046,16 +1060,16 @@ function renderWeekResults() {
   const week = state.dashboard?.latestWeekResults;
   const games = (week?.games || []).map((game) => ({
     week: week.week,
-    away: game.awayTeamId,
-    home: game.homeTeamId,
+    away: teamCode(game.awayTeamId),
+    home: teamCode(game.homeTeamId),
     score: `${game.awayScore}-${game.homeScore}`,
-    winner: game.winnerId || "TIE"
+    winner: teamCode(game.winnerId) || "TIE"
   }));
   renderTable("weekTable", games);
 
   const injuries = (state.dashboard?.injuryReport || []).map((entry) => ({
     player: entry.player,
-    team: entry.teamId,
+    team: teamCode(entry.teamId),
     pos: entry.pos,
     status: entry.injury?.type || "",
     weeks: entry.injury?.weeksRemaining || 0
@@ -1063,7 +1077,7 @@ function renderWeekResults() {
 
   const suspensions = (state.dashboard?.suspensionReport || []).map((entry) => ({
     player: entry.player,
-    team: entry.teamId,
+    team: teamCode(entry.teamId),
     pos: entry.pos,
     status: "Suspension",
     weeks: entry.suspensionWeeks
@@ -1084,9 +1098,9 @@ function renderBoxScoreTicker() {
       (game) => `
         <button class="ticker-item" data-boxscore-id="${escapeHtml(game.gameId)}">
           <span>W${escapeHtml(game.week)} ${escapeHtml(game.seasonType === "playoffs" ? "PO" : "REG")}</span>
-          <span>${escapeHtml(game.awayTeamId)} ${escapeHtml(game.awayScore)}</span>
+          <span>${escapeHtml(teamCode(game.awayTeamId))} ${escapeHtml(game.awayScore)}</span>
           <strong>@</strong>
-          <span>${escapeHtml(game.homeTeamId)} ${escapeHtml(game.homeScore)}</span>
+          <span>${escapeHtml(teamCode(game.homeTeamId))} ${escapeHtml(game.homeScore)}</span>
         </button>`
     )
     .join("");
@@ -1993,10 +2007,10 @@ function renderCalendar() {
   const selected = (calendar.weeks || []).find((week) => week.week === selectedWeek) || calendar.weeks?.[0];
   if (selected) state.calendarWeek = selected.week;
   const gameRows = (selected?.games || []).map((game) => ({
-    away: game.awayTeamId,
-    home: game.homeTeamId,
+    away: teamCode(game.awayTeamId),
+    home: teamCode(game.homeTeamId),
     score: game.played ? `${game.awayScore}-${game.homeScore}` : "-",
-    winner: game.played ? (game.isTie ? "TIE" : game.winnerId || "") : "TBD"
+    winner: game.played ? (game.isTie ? "TIE" : teamCode(game.winnerId) || "") : "TBD"
   }));
   renderTable("calendarGamesTable", gameRows);
 
@@ -2005,10 +2019,10 @@ function renderCalendar() {
       (bracket?.[round] || []).map((game) => ({
         conf,
         round,
-        away: game.awayTeamId,
-        home: game.homeTeamId,
+        away: teamCode(game.awayTeamId),
+        home: teamCode(game.homeTeamId),
         score: `${game.awayScore}-${game.homeScore}`,
-        winner: game.winnerId
+        winner: teamCode(game.winnerId)
       }))
     );
   renderTable("afcBracketTable", toBracketRows("AFC", calendar.postseason?.AFC));
@@ -2019,10 +2033,10 @@ function renderCalendar() {
     sb
       ? [
           {
-            away: sb.awayTeamId,
-            home: sb.homeTeamId,
+            away: teamCode(sb.awayTeamId),
+            home: teamCode(sb.homeTeamId),
             score: `${sb.awayScore}-${sb.homeScore}`,
-            winner: sb.championTeamId || sb.winnerId
+            winner: teamCode(sb.championTeamId || sb.winnerId)
           }
         ]
       : []
@@ -2036,7 +2050,9 @@ function renderTransactionLog() {
     week: entry.week,
     phase: entry.phase,
     type: entry.type,
-    team: entry.teamId || `${entry.teamA || ""}${entry.teamB ? `/${entry.teamB}` : ""}`,
+    team: entry.teamId
+      ? teamCode(entry.teamId)
+      : `${teamCode(entry.teamA || "")}${entry.teamB ? `/${teamCode(entry.teamB)}` : ""}`,
     player: entry.playerName || entry.playerId || "",
     details: formatTransactionDetails(entry)
   }));
@@ -2058,8 +2074,8 @@ function renderPickAssets() {
     id: pick.id,
     yr: pick.year,
     rnd: pick.round,
-    orig: pick.originalTeamId,
-    owner: pick.ownerTeamId,
+    orig: teamCode(pick.originalTeamId),
+    owner: teamCode(pick.ownerTeamId),
     value: pick.value
   }));
   renderTable("pickAssetsTable", rows);
@@ -2100,7 +2116,7 @@ function renderAnalytics() {
   renderTable("analyticsSummaryTable", [
     {
       year: analytics.year,
-      team: analytics.teamId || "ALL",
+      team: analytics.teamId ? teamCode(analytics.teamId) : "ALL",
       ppg: analytics.teamAverages?.pointsPerGame || 0,
       ppgAllowed: analytics.teamAverages?.pointsAllowedPerGame || 0,
       sackRate: analytics.efficiency?.sackRate || 0,
@@ -2374,10 +2390,10 @@ async function loadPlayerModal(playerId) {
 
   document.getElementById("playerModalTitle").textContent = `${player.name} (${player.position})`;
   document.getElementById("playerModalMeta").textContent =
-    `${player.teamId} | OVR ${player.overall} | Age ${player.age} | ${formatHeight(player.heightInches)} ${player.weightLbs || "-"} lbs | Dev ${player.developmentTrait}`;
+    `${teamCode(player.teamId)} | OVR ${player.overall} | Age ${player.age} | ${formatHeight(player.heightInches)} ${player.weightLbs || "-"} lbs | Dev ${player.developmentTrait}`;
   document.getElementById("playerProfileSummary").innerHTML = [
     `<div><strong>${escapeHtml(player.name)}</strong></div>`,
-    `<div>Team: ${escapeHtml(player.teamName || player.teamId)} | Position: ${escapeHtml(player.position)} | Experience: ${escapeHtml(player.experience || 0)}</div>`,
+    `<div>Team: ${escapeHtml(teamDisplayFromId(player.teamId) || player.teamName || player.teamId)} | Position: ${escapeHtml(player.position)} | Experience: ${escapeHtml(player.experience || 0)}</div>`,
     `<div>Height / Weight: ${escapeHtml(formatHeight(player.heightInches))} / ${escapeHtml(player.weightLbs || "-")} lbs | Potential: ${escapeHtml(player.potential || "-")} | Morale: ${escapeHtml(player.morale || "-")} | Motivation: ${escapeHtml(player.motivation || "-")}</div>`,
     `<div>Physical frame matters to the sim through positional body ranges, while ratings drive role quality, efficiency, usage, and development outcomes.</div>`
   ].join("");
