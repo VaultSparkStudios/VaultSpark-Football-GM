@@ -187,3 +187,24 @@ Open problems:
 
 Recommended next action:
 - Push world-state into transaction AI and player-facing development/history views, then do the deferred setup/menu latency measurement pass
+
+## 2026-03-12 (transaction AI and player-facing outlook)
+
+Completed:
+- Extended trade valuation to account for scheme fit, age/development, pick appetite, and owner/culture transaction tolerance
+- Extended free-agency offer selection so team context can outweigh a small salary gap
+- Added player-facing development outlook data to the player profile payload and surfaced it in the player modal summary
+- Revalidated the follow-up batch with:
+  - `node --check src/runtime/GameSession.js`
+  - `node --check public/app.js`
+  - `node --check test/feature-pack-v1.test.js`
+  - `node --test --test-isolation=none test/feature-pack-v1.test.js test/new-systems.test.js test/local-api-runtime.test.js test/world-state-next-step.test.js test/session-actions.test.js test/strategy-contract-scouting.test.js`
+  - `npm.cmd run build:pages`
+  - `npm.cmd run smoke:pages`
+
+Open problems:
+- Owner expectation and finance-pressure loops still have room to consume more of the world-state model
+- Setup/menu latency still has not been measured after the latest runtime and UI rounds
+
+Recommended next action:
+- Extend owner expectation/hot-seat logic and any remaining AI transaction edges, then perform the deferred setup/menu latency measurement pass

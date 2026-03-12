@@ -96,3 +96,43 @@ test("feature pack v1: world-state modifiers affect scouting, recovery, and owne
   });
   assert.equal(buf.owner.hotSeat, true);
 });
+
+test("feature pack v1: player profile exposes development outlook context", () => {
+  const session = createSession({ seed: 1001, startYear: 2026, controlledTeamId: "BUF" });
+  const player = session.getRoster("BUF")[0];
+  const profile = session.getPlayerProfile(player.id);
+  assert.ok(profile?.developmentOutlook);
+  assert.equal(typeof profile.developmentOutlook.trajectory, "string");
+  assert.equal(typeof profile.developmentOutlook.fit, "number");
+  assert.ok(Array.isArray(profile.developmentOutlook.focusRatings));
+  assert.equal(typeof profile.developmentOutlook.legacyScore, "number");
+});
+
+test("feature pack v1: free agency AI can favor stronger team context over a small salary gap", () => {
+  const session = createSession({ seed: 1002, startYear: 2026, controlledTeamId: "BUF" });
+  const buf = session.league.teams.find((team) => team.id === "BUF");
+  const mia = session.league.teams.find((team) => team.id === "MIA");
+  assert.ok(buf && mia);
+
+  const candidate = session.getRoster("BUF").find((player) => player.age <= 25 && player.position !== "K" && player.position !== "P");
+  assert.ok(candidate);
+  session.releasePlayer({ teamId: "BUF", playerId: candidate.id, toWaivers: false });
+
+  buf.owner.personality = "player-friendly";
+  buf.owner.patience = 0.76;
+  buf.owner.staffBudget = 48_000_000;
+  buf.cultureProfile = { ...(buf.cultureProfile || {}), identity: "developmental", pressure: 24 };
+  mia.owner.personality = "profit-first";
+  mia.owner.patience = 0.22;
+  mia.owner.staffBudget = 18_000_000;
+  mia.cultureProfile = { ...(mia.cultureProfile || {}), identity: "urgent", pressure: 78 };
+  session.refreshChemistryAndSchemeFit();
+
+  session.submitFreeAgencyOffer({ teamId: "BUF", playerId: candidate.id, years: 4, salary: 8_000_000 });
+  session.submitFreeAgencyOffer({ teamId: "MIA", playerId: candidate.id, years: 4, salary: 8_600_000 });
+  const result = session.processFreeAgencyMarket();
+
+  assert.ok(result.signed >= 1);
+  const signed = session.league.players.find((player) => player.id === candidate.id);
+  assert.equal(signed.teamId, "BUF");
+});

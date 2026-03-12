@@ -1,7 +1,7 @@
 # Task Board
 
 ## Now
-- Feed the new world-state deeper into transaction AI, player development surfacing, and owner expectation loops
+- Feed the new world-state deeper into owner expectation loops and any remaining transaction AI edges
 - Measure any remaining setup/main-menu latency after the non-blocking save-load and client-runtime import fixes, especially residual runtime-mode startup overhead
 - Add clearer UI messaging for challenge-triggered failures and the new weekly plan/scouting-fit outputs
 

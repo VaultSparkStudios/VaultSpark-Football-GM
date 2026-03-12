@@ -21,6 +21,10 @@ Build status:
   - draft scouting reveal quality and confidence now improve when staff, analytics, budget support, team need, and scheme fit align
   - offseason player development now uses team training/coaching/scheme context and can reduce reinjury risk in stronger environments
   - weekly matchup plans now derive from team/opponent strengths, feed the game simulator, and surface through owner/staff views plus game results
+- Transaction AI and player-facing surfacing now consume more of that world-state:
+  - trade valuation now accounts for scheme fit, age/development, picks bias, and owner/culture transaction tolerance
+  - free-agency offer resolution now considers team context, not just raw salary/years
+  - player profiles now expose a development outlook with fit, focus ratings, weekly-plan context, pressure, and legacy score
 - Challenge enforcement now blocks user free-agent actions in `no-free-agency` mode and blocks trades that would deliver top-10 picks to the controlled team in `no-top-10-picks` mode
 - That enforcement now reaches the remaining obvious user acquisition paths too:
   - waiver claims are blocked in `no-free-agency`
@@ -42,7 +46,7 @@ Build status:
   - `npm.cmd run smoke:pages`
 
 Current priorities:
-1. Feed the new world-state deeper into transaction AI, player development surfacing, and owner expectation loops instead of stopping at the current sim hooks
+1. Feed the new world-state deeper into owner expectation loops and any remaining transaction AI edges instead of stopping at the current trade/FA hooks
 2. Measure and trim any remaining setup/main-menu latency after the non-blocking save-load and client-runtime import fixes
 3. Add clearer UI messaging for challenge-triggered failures and for the new weekly plan/scouting-fit outputs
 

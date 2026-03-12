@@ -386,6 +386,99 @@ function playerDevelopmentContext(team, roster, player) {
   };
 }
 
+function teamTransactionAiProfile(team, roster = []) {
+  const modifiers = teamWorldStateModifiers(team, roster);
+  const strategy = team?.strategyProfile || "balanced";
+  const personality = team?.owner?.personality || "legacy-builder";
+  const patience = Number(team?.owner?.patience || 0.55);
+  const market = Number(team?.owner?.marketSize || 1);
+  const staffBudget = Number(team?.owner?.staffBudget || 25_000_000);
+  return {
+    picksBias:
+      strategy === "rebuild" ? 1.18 : strategy === "retool" ? 1.08 : strategy === "contender" || strategy === "win-now" ? 0.88 : 1,
+    veteranBias:
+      strategy === "contender" || strategy === "win-now" ? 1.1 : strategy === "rebuild" ? 0.88 : 1,
+    youthBias:
+      strategy === "rebuild" ? 1.16 : strategy === "retool" ? 1.08 : strategy === "win-now" ? 0.9 : 1,
+    schemeBias: Number((1 + Math.max(-0.08, Math.min(0.12, (modifiers.culture.identity === "developmental" ? 0.04 : 0) + (patience - 0.55) * 0.18))).toFixed(3)),
+    tradeToleranceDelta:
+      (personality === "win-now" ? -0.03 : personality === "profit-first" ? -0.015 : personality === "player-friendly" ? 0.01 : 0) +
+      (modifiers.culture.identity === "urgent" ? -0.03 : modifiers.culture.identity === "developmental" ? 0.03 : 0),
+    freeAgencyPull:
+      (personality === "player-friendly" ? 4 : personality === "win-now" ? 3 : personality === "legacy-builder" ? 2 : 1) +
+      (modifiers.culture.identity === "confident" ? 2 : 0) +
+      (market >= 1.08 ? 1 : 0) +
+      (staffBudget >= 35_000_000 ? 1 : 0),
+    extensionFriendliness:
+      (personality === "player-friendly" ? 0.05 : personality === "profit-first" ? -0.03 : 0) +
+      (patience - 0.55) * 0.08
+  };
+}
+
+function playerTradeValueForTeam(player, team, roster = [], { incoming = true } = {}) {
+  if (!player) return 0;
+  const profile = teamTransactionAiProfile(team, roster);
+  const fit = computeSchemeFit(player, team);
+  const age = Number(player.age || 26);
+  const devTrait = player.developmentTrait;
+  const devBoost = devTrait === "Superstar" ? 1.12 : devTrait === "Hidden Development" ? 1.06 : devTrait === "Bust" ? 0.92 : 1;
+  const youthWeight = age <= 24 ? profile.youthBias : age >= 29 ? profile.veteranBias : 1;
+  const fitWeight = 0.88 + Math.max(-0.08, Math.min(0.16, (fit - 70) / 100)) * profile.schemeBias;
+  const moraleWeight = 0.95 + Math.max(-0.05, Math.min(0.06, ((player.morale || 72) - 72) / 100));
+  const ageWeight = age <= 24 ? 1.08 : age <= 28 ? 1.02 : age <= 31 ? 0.97 : 0.88;
+  const directionWeight = incoming ? 1 : 1 / Math.max(0.85, profile.schemeBias);
+  return Math.round((player.overall || 70) * 3 * devBoost * youthWeight * fitWeight * moraleWeight * ageWeight * directionWeight);
+}
+
+function pickTradeValueForTeam(pick, team, roster = []) {
+  if (!pick) return 0;
+  const profile = teamTransactionAiProfile(team, roster);
+  const top10Boost = (pick.originalPickIndex || 99) <= 10 ? 1.14 : 1;
+  return Math.round(pickAssetValue(pick) * profile.picksBias * top10Boost);
+}
+
+function freeAgencyOfferScore(player, offer, team, roster = []) {
+  const profile = teamTransactionAiProfile(team, roster);
+  const fit = computeSchemeFit(player, team);
+  const years = Number(offer?.years || 1);
+  const salary = Number(offer?.salary || 0);
+  const age = Number(player.age || 26);
+  const contenderPull =
+    (team?.strategyProfile === "contender" || team?.strategyProfile === "win-now" ? 10 : team?.strategyProfile === "rebuild" ? -6 : 0) +
+    ((team?.season?.wins || 0) - (team?.season?.losses || 0)) * 0.8;
+  const developmentPull = age <= 25 ? (team?.cultureProfile?.identity === "developmental" ? 9 : 0) + (profile.freeAgencyPull || 0) : 0;
+  const veteranPull = age >= 29 ? (team?.strategyProfile === "contender" || team?.strategyProfile === "win-now" ? 8 : -2) : 0;
+  return (
+    salary / 350_000 +
+    years * 2.5 +
+    fit * 0.22 +
+    profile.freeAgencyPull +
+    contenderPull +
+    developmentPull +
+    veteranPull
+  );
+}
+
+function buildPlayerDevelopmentOutlook(player, team, roster = []) {
+  const context = playerDevelopmentContext(team, roster, player);
+  const fit = team ? computeSchemeFit(player, team) : player.schemeFit || 72;
+  const trajectoryScore = context.developmentBonus + (fit >= 82 ? 1 : fit <= 64 ? -1 : 0) + (player.age <= 24 ? 1 : player.age >= 30 ? -1 : 0);
+  const trajectory = trajectoryScore >= 3 ? "surging" : trajectoryScore >= 1 ? "positive" : trajectoryScore <= -2 ? "fragile" : "steady";
+  return {
+    trajectory,
+    fit,
+    fitLabel: fit >= 84 ? "ideal" : fit >= 74 ? "strong" : fit <= 64 ? "poor" : "average",
+    developmentBonus: context.developmentBonus,
+    focusRatings: context.focusRatings,
+    culture: team?.cultureProfile?.identity || null,
+    scheme: team?.schemeIdentity ? `${team.schemeIdentity.offense} / ${team.schemeIdentity.defense}` : null,
+    weeklyPlan: team?.weeklyPlan?.summary || null,
+    ownerPressure: team?.cultureProfile?.pressure ?? null,
+    recoveryBonus: context.recoveryBonus,
+    legacyScore: hallOfFameLegacyScore(player)
+  };
+}
+
 function buildWeeklyMatchPlan(team, roster = [], opponent = null, opponentRoster = []) {
   const culture = team?.cultureProfile || cultureIdentity(team, roster);
   if (!team || !opponent) {
@@ -2546,22 +2639,29 @@ export class GameSession {
     const teamBObj = teamById(this.league, teamB);
     const pickValueA = picksA.reduce((sum, pick) => sum + pickAssetValue(pick), 0);
     const pickValueB = picksB.reduce((sum, pick) => sum + pickAssetValue(pick), 0);
-    const playerValueOutA = fromA.reduce((sum, player) => sum + player.overall * 3, 0);
-    const playerValueInA = fromB.reduce((sum, player) => sum + player.overall * 3, 0);
-    const playerValueOutB = fromB.reduce((sum, player) => sum + player.overall * 3, 0);
-    const playerValueInB = fromA.reduce((sum, player) => sum + player.overall * 3, 0);
+    const rosterA = teamPlayersAll(this.league, teamA);
+    const rosterB = teamPlayersAll(this.league, teamB);
+    const playerValueOutA = fromA.reduce((sum, player) => sum + playerTradeValueForTeam(player, teamAObj, rosterA, { incoming: false }), 0);
+    const playerValueInA = fromB.reduce((sum, player) => sum + playerTradeValueForTeam(player, teamAObj, rosterA, { incoming: true }), 0);
+    const playerValueOutB = fromB.reduce((sum, player) => sum + playerTradeValueForTeam(player, teamBObj, rosterB, { incoming: false }), 0);
+    const playerValueInB = fromA.reduce((sum, player) => sum + playerTradeValueForTeam(player, teamBObj, rosterB, { incoming: true }), 0);
+    const adjustedPickValueA = picksA.reduce((sum, pick) => sum + pickTradeValueForTeam(pick, teamAObj, rosterA), 0);
+    const adjustedPickValueB = picksB.reduce((sum, pick) => sum + pickTradeValueForTeam(pick, teamBObj, rosterB), 0);
+    const incomingPickValueA = picksB.reduce((sum, pick) => sum + pickTradeValueForTeam(pick, teamAObj, rosterA), 0);
+    const incomingPickValueB = picksA.reduce((sum, pick) => sum + pickTradeValueForTeam(pick, teamBObj, rosterB), 0);
 
-    const outgoingValueA = playerValueOutA + pickValueA;
-    const incomingValueA = playerValueInA + pickValueB;
-    const outgoingValueB = playerValueOutB + pickValueB;
-    const incomingValueB = playerValueInB + pickValueA;
+    const outgoingValueA = playerValueOutA + adjustedPickValueA;
+    const incomingValueA = playerValueInA + incomingPickValueA;
+    const outgoingValueB = playerValueOutB + adjustedPickValueB;
+    const incomingValueB = playerValueInB + incomingPickValueB;
 
     const strategyTolerance = (team) => {
       const aggression = this.getLeagueSettings().cpuTradeAggression;
       const aggressionAdj = clamp((aggression - 0.5) * 0.24, -0.12, 0.12);
-      if (team.strategyProfile === "rebuild") return clamp(0.4 + aggressionAdj, 0.2, 0.55);
-      if (team.strategyProfile === "contender") return clamp(0.25 + aggressionAdj, 0.12, 0.4);
-      return clamp(0.32 + aggressionAdj, 0.15, 0.5);
+      const profile = teamTransactionAiProfile(team, teamPlayersAll(this.league, team.id));
+      if (team.strategyProfile === "rebuild") return clamp(0.4 + aggressionAdj + profile.tradeToleranceDelta, 0.2, 0.55);
+      if (team.strategyProfile === "contender") return clamp(0.25 + aggressionAdj + profile.tradeToleranceDelta, 0.12, 0.4);
+      return clamp(0.32 + aggressionAdj + profile.tradeToleranceDelta, 0.15, 0.5);
     };
 
     const aiAcceptableA =
@@ -2718,6 +2818,7 @@ export class GameSession {
     const ageCurve = player.age <= 27 ? 1.08 : player.age <= 31 ? 1 : 0.92;
     const team = teamById(this.league, teamId);
     const modifiers = teamWorldStateModifiers(team, team ? teamPlayersAll(this.league, teamId) : []);
+    const transactionProfile = teamTransactionAiProfile(team, team ? teamPlayersAll(this.league, teamId) : []);
     const demandMultiplier = this.getLeagueSettings().contractDemandMultiplier || 1;
     const years = clamp(
       contract.yearsRemaining <= 1
@@ -2731,7 +2832,11 @@ export class GameSession {
       5
     );
     const salary = Math.round(
-      Math.max(baseSalary, contract.salary * 1.04) * leverage * ageCurve * demandMultiplier * (1 - modifiers.negotiationLeverageDelta)
+      Math.max(baseSalary, contract.salary * 1.04) *
+        leverage *
+        ageCurve *
+        demandMultiplier *
+        (1 - modifiers.negotiationLeverageDelta - transactionProfile.extensionFriendliness)
     );
     const guaranteedPct = clamp(0.36 + (player.overall - 70) / 160 + (leverage - 1) * 0.4, 0.32, 0.82);
     const guaranteed = Math.round(salary * guaranteedPct);
@@ -3571,6 +3676,7 @@ export class GameSession {
     const player = [...this.league.players, ...this.league.retiredPlayers].find((entry) => entry.id === playerId);
     if (!player) return null;
     const team = teamById(this.league, player.teamId);
+    const roster = team ? teamPlayersAll(this.league, player.teamId) : [];
     const normalizedSeasonType = normalizeSeasonType(seasonType, "regular");
 
     const seasonRows = Object.fromEntries(
@@ -3619,6 +3725,7 @@ export class GameSession {
         ratings: player.ratings,
         contract: normalizeContract(player.contract)
       },
+      developmentOutlook: buildPlayerDevelopmentOutlook(player, team, roster),
       seasonType: normalizedSeasonType,
       timeline: this.getPlayerTimeline(playerId, { seasonType: normalizedSeasonType })?.timeline || [],
       career,
@@ -4132,7 +4239,15 @@ export class GameSession {
       if (!player) continue;
       const ranked = playerOffers
         .slice()
-        .sort((a, b) => b.salary - a.salary || b.years - a.years || a.teamId.localeCompare(b.teamId));
+        .sort((a, b) => {
+          const teamA = teamById(this.league, a.teamId);
+          const teamB = teamById(this.league, b.teamId);
+          const rosterA = teamA ? teamPlayersAll(this.league, a.teamId) : [];
+          const rosterB = teamB ? teamPlayersAll(this.league, b.teamId) : [];
+          const scoreA = freeAgencyOfferScore(player, a, teamA, rosterA);
+          const scoreB = freeAgencyOfferScore(player, b, teamB, rosterB);
+          return scoreB - scoreA || b.salary - a.salary || b.years - a.years || a.teamId.localeCompare(b.teamId);
+        });
       for (const offer of ranked) {
         const contract = buildContract({
           overall: player.overall,

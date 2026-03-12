@@ -2607,6 +2607,7 @@ async function loadPlayerModal(playerId) {
   );
   const profile = payload.profile;
   const player = profile.player;
+  const outlook = profile.developmentOutlook || {};
   document.getElementById("playerSeasonTypeFilter").value = profile.seasonType || seasonType;
 
   document.getElementById("playerModalTitle").textContent = `${player.name} (${player.position})`;
@@ -2616,6 +2617,8 @@ async function loadPlayerModal(playerId) {
     `<div><strong>${escapeHtml(player.name)}</strong></div>`,
     `<div>Team: ${escapeHtml(teamDisplayFromId(player.teamId) || player.teamName || player.teamId)} | Position: ${escapeHtml(player.position)} | Experience: ${escapeHtml(player.experience || 0)}</div>`,
     `<div>Height / Weight: ${escapeHtml(formatHeight(player.heightInches))} / ${escapeHtml(player.weightLbs || "-")} lbs | Potential: ${escapeHtml(player.potential || "-")} | Morale: ${escapeHtml(player.morale || "-")} | Motivation: ${escapeHtml(player.motivation || "-")}</div>`,
+    `<div>Development outlook: ${escapeHtml(outlook.trajectory || "steady")} | Scheme fit: ${escapeHtml(outlook.fitLabel || "-")} (${escapeHtml(outlook.fit ?? "-")}) | Culture: ${escapeHtml(outlook.culture || "-")} | Weekly focus: ${escapeHtml(outlook.weeklyPlan || "-")}</div>`,
+    `<div>Focus ratings: ${escapeHtml((outlook.focusRatings || []).map((rating) => toTitleCaseKey(rating)).join(", ") || "-")} | Owner pressure: ${escapeHtml(outlook.ownerPressure ?? "-")} | Legacy score: ${escapeHtml(outlook.legacyScore ?? "-")}</div>`,
     `<div>Physical frame matters to the sim through positional body ranges, while ratings drive role quality, efficiency, usage, and development outcomes.</div>`
   ].join("");
 

@@ -29,6 +29,10 @@ What was completed:
   - force-sign retirement overrides are now blocked in `no-free-agency`
   - user top-10 draft selections are now blocked in `no-top-10-picks`
   - CPU draft progression no longer stalls when the controlled team is challenge-blocked from making a top-10 pick
+- Pushed the world-state layer one step deeper into AI and player-facing surfaces:
+  - trade valuation now accounts for scheme fit, age/development, pick appetite, and owner/culture tolerance
+  - free-agency offer selection now considers team context instead of only salary/years
+  - player profiles now expose development outlook, focus ratings, weekly-plan context, owner pressure, and legacy score
 - Revalidated the current gameplay/client batch with:
   - `node --check public/app.js`
   - `node --check public/setup.js`
@@ -42,7 +46,8 @@ What was completed:
   - `node --check test/world-state-next-step.test.js`
   - `node --check test/local-api-runtime.test.js`
   - `node --check test/new-systems.test.js`
-  - `node --test --test-isolation=none test/world-state-next-step.test.js test/feature-pack-v1.test.js test/new-systems.test.js test/session-actions.test.js test/local-api-runtime.test.js test/strategy-contract-scouting.test.js`
+  - `node --check test/feature-pack-v1.test.js`
+  - `node --test --test-isolation=none test/feature-pack-v1.test.js test/new-systems.test.js test/local-api-runtime.test.js test/world-state-next-step.test.js test/session-actions.test.js test/strategy-contract-scouting.test.js`
   - `npm.cmd run build:pages`
   - `npm.cmd run smoke:pages`
 
@@ -51,7 +56,7 @@ What is mid-flight:
 - Challenge restrictions are much more mechanical now, though edge-case acquisition paths may still be worth auditing later
 
 What to do next:
-1. Feed the new world-state deeper into transaction AI, player development surfacing, and owner expectation loops
+1. Feed the new world-state deeper into owner expectation loops and any remaining transaction AI edges
 2. Measure and trim any remaining setup/main-menu latency, especially any residual runtime-mode startup overhead after the client-runtime import fix
 3. Add clearer UI messaging for challenge-triggered failures and for the new weekly-plan/scouting-fit outputs
 
