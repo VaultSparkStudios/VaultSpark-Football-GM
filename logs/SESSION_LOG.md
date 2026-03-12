@@ -296,3 +296,20 @@ Open problems:
 
 Recommended next action:
 - Decide whether to add explicit starter-qualified benchmark hints to the stats UI, then return to the next world-state/latency slice
+
+## 2026-03-12 (stats benchmark hint)
+
+Completed:
+- Added a filter-aware starter-qualified benchmark hint to the stats tab so category/position/scope changes explicitly explain which NFL baseline is relevant
+- Made the hint call out when the view is using regular-season starter samples versus career aggregates or non-player team views
+- Revalidated the UI follow-up with:
+  - `node --check public/app.js`
+  - `npm.cmd run build:pages`
+  - `npm.cmd run smoke:pages`
+
+Open problems:
+- The stats tab is clearer now, but the same "what benchmark am I actually looking at?" problem can still surface in other analysis-heavy panels
+- The broader world-state roadmap still needs another pass into deeper AI/expectation behavior after this stats/UI correction run
+
+Recommended next action:
+- Carry the same explicit benchmark/qualification language into any remaining analytics or history surfaces that still invite misleading average comparisons, then resume the world-state/latency roadmap

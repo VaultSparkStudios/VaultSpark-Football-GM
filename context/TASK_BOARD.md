@@ -3,7 +3,7 @@
 ## Now
 - Validate whether any remaining setup/main-menu latency still needs another trim after the new lazy browser bootstrap
 - Feed the new world-state deeper into any remaining owner expectation loops and transaction AI edges
-- Decide whether the stats UI now needs explicit benchmark/qualification hints after fixing the broken career per-game denominator
+- Extend the new stats benchmark/qualification hint pattern to any other views that still imply apples-to-apples NFL averages without saying so
 
 ## Next
 - Use the new setup diagnostics to decide whether any remaining setup cost is now dominated by save listing, backup listing, or client-side render work

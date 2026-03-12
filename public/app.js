@@ -184,6 +184,56 @@ const GUIDE_SECTIONS = [
   }
 ];
 
+const STATS_BENCHMARK_HINTS = {
+  passing: {
+    QB: "Starter-qualified QB baseline: QB1 sample, regular season, about 534 att, 3,850 yds, 25 TD, 12 INT, plus 44 rush att.",
+    default:
+      "Passing NFL averages here are starter-qualified QB baselines, not all-player averages. Select QB for the clearest apples-to-apples comparison."
+  },
+  rushing: {
+    QB: "QB rushing baseline: primary starters average about 44 att, 218 yds, and 2 TD over a regular season.",
+    RB: "Starter-qualified RB baseline: top two backs per team average about 162 att, 708 rush yds, 6 rush TD, plus 43 targets and 241 rec yds.",
+    WR: "WR rushing usage is situational, so NFL rushing baselines are not especially meaningful for this view.",
+    TE: "TE rushing usage is situational, so NFL rushing baselines are not especially meaningful for this view.",
+    default:
+      "Rushing NFL averages vary hard by position. For true benchmark comparisons, use QB or RB rather than all-player rushing rows."
+  },
+  receiving: {
+    RB: "Receiving RB baseline: starter-qualified backs average about 43 targets, 31 catches, 241 yds, and 2 TD.",
+    WR: "Starter-qualified WR baseline: top three receivers per team average about 88 targets, 58 catches, 761 yds, and 5 TD.",
+    TE: "Starter-qualified TE baseline: TE1 sample averages about 77 targets, 50 catches, 578 yds, and 4 TD.",
+    default:
+      "Receiving NFL averages depend on role. Select WR, TE, or RB for a position-specific starter-qualified benchmark."
+  },
+  defense: {
+    DL: "Starter-qualified DL baseline: top four linemen per team average about 45 tackles, 6.2 sacks, 3.1 pass breakups, and 0.3 INT.",
+    LB: "Starter-qualified LB baseline: top three linebackers per team average about 91 tackles, 3 sacks, 5 pass breakups, and 1 INT.",
+    DB: "Starter-qualified DB baseline: top four defensive backs per team average about 68 tackles, 1.1 sacks, 10.2 pass breakups, and 2.1 INT.",
+    default:
+      "Defensive NFL averages vary by room. Select DL, LB, or DB to compare against a starter-qualified baseline."
+  },
+  blocking: {
+    OL: "Starter-qualified OL baseline: five starters per team average about 14.4 starts in a regular season.",
+    default: "Blocking baselines are only meaningful for OL starter samples."
+  },
+  kicking: {
+    K: "Starter-qualified K baseline: regular-season K1 sample averages about 34 FGA, 29 FGM, 37 XPA, and 35 XPM.",
+    default: "Kicking baselines are based on one primary kicker per team over the regular season."
+  },
+  punting: {
+    P: "Starter-qualified P baseline: regular-season P1 sample averages about 64 punts, 3,005 yds, and 24 inside-the-20 punts.",
+    default: "Punting baselines are based on one primary punter per team over the regular season."
+  },
+  snaps: {
+    default:
+      "Snap tables are usage views, not NFL-average production baselines. Use them to compare workload, not starter output."
+  },
+  team: {
+    default:
+      "Team tables are not starter-qualified player baselines. Use QA and analytics panels for league-level scoring and efficiency averages."
+  }
+};
+
 const api = createApiClient();
 
 function escapeHtml(value) {
@@ -2718,6 +2768,7 @@ function updateStatsControls() {
     position.disabled = true;
     year.disabled = false;
     if (seasonType) seasonType.disabled = true;
+    renderStatsBenchmarkHint();
     return;
   }
 
@@ -2726,6 +2777,7 @@ function updateStatsControls() {
     position.disabled = false;
     year.disabled = true;
     if (seasonType) seasonType.disabled = false;
+    renderStatsBenchmarkHint();
     return;
   }
 
@@ -2733,6 +2785,25 @@ function updateStatsControls() {
   position.disabled = false;
   year.disabled = false;
   if (seasonType) seasonType.disabled = false;
+  renderStatsBenchmarkHint();
+}
+
+function renderStatsBenchmarkHint() {
+  const box = document.getElementById("statsBenchmarkText");
+  if (!box) return;
+  const scope = document.getElementById("scopeFilter")?.value || "season";
+  const category = scope === "team" ? "team" : document.getElementById("categoryFilter")?.value || "passing";
+  const position = document.getElementById("positionFilter")?.value || "";
+  const seasonType = document.getElementById("statsSeasonTypeFilter")?.value || "regular";
+  const hints = STATS_BENCHMARK_HINTS[category] || {};
+  const base = hints[position] || hints.default || "Benchmarks are unavailable for this view.";
+  const qualifiers = [];
+  if (scope === "career") qualifiers.push("Career tables aggregate seasons, so use the baseline as a role anchor, not a direct total target.");
+  if (scope === "season" && seasonType !== "regular") qualifiers.push("Displayed benchmark is still based on regular-season starter samples.");
+  if (scope === "season" && !position && ["receiving", "rushing", "defense"].includes(category)) {
+    qualifiers.push("Choose a position filter for the cleanest NFL-average comparison.");
+  }
+  box.textContent = [base, ...qualifiers].join(" ");
 }
 
 function applyStatsSort() {

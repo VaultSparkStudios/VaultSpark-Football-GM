@@ -37,6 +37,7 @@ Build status:
 - The roster page no longer shows the redundant roster-board panel at the bottom; only the main roster management surface remains
 - Career stat rows now carry real games and starts, fixing broken per-game calculations that were previously dividing by seasons in the stats UI
 - Added a regression suite that checks both the career per-game denominator fix and starter-qualified season averages against weighted position baselines
+- The stats tab now shows a filter-aware starter-qualified benchmark hint so position-based NFL-average comparisons are explicit instead of implied
 - Challenge enforcement now blocks user free-agent actions in `no-free-agency` mode and blocks trades that would deliver top-10 picks to the controlled team in `no-top-10-picks` mode
 - That enforcement now reaches the remaining obvious user acquisition paths too:
   - waiver claims are blocked in `no-free-agency`
@@ -60,7 +61,7 @@ Build status:
 Current priorities:
 1. Use the new setup diagnostics to confirm whether any remaining setup/main-menu latency still needs another trim after the lazy browser bootstrap
 2. Feed the new world-state deeper into any remaining owner expectation loops and transaction AI edges instead of stopping at the current trade/FA hooks
-3. Decide whether the stats UI now needs explicit benchmark/qualification hints so users do not confuse all-player tables with starter-qualified NFL baselines
+3. Extend the new benchmark/qualification hint pattern anywhere else the UI compares all-player data to starter-qualified or team-level baselines
 
 Known issues:
 - The Pages artifact remains client-only unless `GAME_SERVICE_ORIGIN` or `API_DOMAIN` is configured and the separate backend/runtime rollout is live

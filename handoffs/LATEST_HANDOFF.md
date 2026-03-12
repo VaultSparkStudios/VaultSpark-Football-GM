@@ -51,6 +51,7 @@ What was completed:
   - removed the redundant roster-board panel from the roster page
   - fixed career stat rows so they now carry real games/starts, which restores correct per-game calculations in the stats UI
   - added a regression that checks starter-qualified season averages against weighted position baselines
+- Added a filter-aware starter-qualified benchmark hint to the stats tab so users can tell when they are comparing against position-specific regular-season starter baselines versus broader all-player/team views
 - Revalidated the current gameplay/client batch with:
   - `node --check public/app.js`
   - `node --check public/setup.js`
@@ -79,7 +80,7 @@ What is mid-flight:
 What to do next:
 1. Use the new setup diagnostics to decide whether any remaining setup/main-menu latency still needs another trim after the lazy browser bootstrap
 2. Feed the new world-state deeper into any remaining owner expectation loops and transaction AI edges
-3. Decide whether the stats UI now needs explicit starter-qualified benchmark hints so NFL-average comparisons by position are clearer
+3. Extend the new benchmark/qualification hint pattern to any other views that still imply apples-to-apples NFL averages without saying so
 
 Important constraints:
 - The parked stash is named `park unrelated realism-runtime work after depth-chart commit`; do not lose it if that work is still needed
