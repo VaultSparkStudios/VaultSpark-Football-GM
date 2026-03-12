@@ -3338,6 +3338,41 @@ export class GameSession {
       }));
   }
 
+  searchPlayers({ query = "", limit = 20, includeRetired = true } = {}) {
+    const needle = String(query || "").trim().toLowerCase();
+    if (!needle) return [];
+    const safeLimit = normalizeCount(limit, 1, 100, 20);
+    const rankPlayer = (player) => {
+      const name = String(player.name || "").toLowerCase();
+      if (name === needle) return 0;
+      if (name.startsWith(needle)) return 1;
+      const parts = name.split(/\s+/);
+      if (parts.some((part) => part.startsWith(needle))) return 2;
+      return 3;
+    };
+    return [
+      ...this.league.players.map((player) => ({ ...player, __retired: false })),
+      ...(includeRetired ? this.league.retiredPlayers.map((player) => ({ ...player, __retired: true })) : [])
+    ]
+      .filter((player) => String(player.name || "").toLowerCase().includes(needle))
+      .sort((a, b) => {
+        const rankDiff = rankPlayer(a) - rankPlayer(b);
+        if (rankDiff !== 0) return rankDiff;
+        return (b.overall || 0) - (a.overall || 0);
+      })
+      .slice(0, safeLimit)
+      .map((player) => ({
+        id: player.id,
+        name: player.name,
+        pos: player.position,
+        age: player.age,
+        overall: player.overall,
+        teamId: player.__retired ? "RET" : player.teamId,
+        status: player.__retired ? "retired" : player.teamId === "WAIVER" ? "waiver" : player.teamId === "FA" ? "free-agent" : "active",
+        retiredYear: player.retiredYear || null
+      }));
+  }
+
   overrideRetirement({
     playerId,
     teamId = this.controlledTeamId,

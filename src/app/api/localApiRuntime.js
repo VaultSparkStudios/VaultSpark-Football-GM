@@ -297,6 +297,18 @@ export function createLocalApiRuntime({
         );
       }
 
+      if (method === "GET" && pathname === "/api/players/search") {
+        const query = url.searchParams.get("q") || "";
+        const limit = toInt(url.searchParams.get("limit")) || 20;
+        const includeRetired = url.searchParams.get("includeRetired") !== "0";
+        return finish(
+          jsonResponse(200, {
+            ok: true,
+            players: session.searchPlayers({ query, limit, includeRetired })
+          })
+        );
+      }
+
       if (method === "GET" && pathname === "/api/free-agency/market") {
         const teamId = (url.searchParams.get("team") || session.controlledTeamId).toUpperCase();
         const limit = toInt(url.searchParams.get("limit")) || 60;

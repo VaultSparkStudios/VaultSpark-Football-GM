@@ -12,6 +12,16 @@ const state = {
   selectedDesignationPlayerId: null,
   selectedRetirementOverridePlayerId: null,
   tradeBlockIds: [],
+  tradeAssets: {
+    teamAPlayerIds: [],
+    teamBPlayerIds: [],
+    teamAPickIds: [],
+    teamBPickIds: []
+  },
+  tradeTeamARoster: [],
+  tradeTeamBRoster: [],
+  tradeTeamAPicks: [],
+  tradeTeamBPicks: [],
   statsRows: [],
   statsPage: 1,
   statsPageSize: 40,
@@ -47,9 +57,13 @@ const state = {
   realismVerification: null,
   pipeline: null,
   simJobs: [],
+  comparePlayerIds: [],
   comparePlayers: [],
+  compareSearchResults: [],
   commandFilter: "",
   retiredPool: [],
+  historyPlayerSearchResults: [],
+  selectedHistoryPlayerId: null,
   statsHiddenColumns: [],
   activePlayerId: null,
   recentBoxScores: [],
@@ -746,11 +760,23 @@ function valueAsNumber(row, key) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function parseIds(text) {
-  return String(text || "")
-    .split(",")
-    .map((part) => part.trim())
-    .filter(Boolean);
+function createEmptyTradeAssets() {
+  return {
+    teamAPlayerIds: [],
+    teamBPlayerIds: [],
+    teamAPickIds: [],
+    teamBPickIds: []
+  };
+}
+
+function tradeAssetKeys(side) {
+  return side === "A"
+    ? { playerKey: "teamAPlayerIds", pickKey: "teamAPickIds", rosterKey: "tradeTeamARoster", picksKey: "tradeTeamAPicks" }
+    : { playerKey: "teamBPlayerIds", pickKey: "teamBPickIds", rosterKey: "tradeTeamBRoster", picksKey: "tradeTeamBPicks" };
+}
+
+function uniqueIds(ids = []) {
+  return [...new Set((ids || []).filter(Boolean))];
 }
 
 function fmtDeltaMoney(value) {
@@ -1524,13 +1550,104 @@ function toggleTradeBlockPlayer(playerId) {
   renderContractsPage();
 }
 
+function getTradeTeamId(side) {
+  const selectId = side === "A" ? "tradeTeamA" : "tradeTeamB";
+  return document.getElementById(selectId)?.value || state.dashboard?.controlledTeamId || "BUF";
+}
+
+function setTradeEvalCards({ fairness = null, capDeltaA = null, capDeltaB = null } = {}) {
+  document.getElementById("tradeFairnessScore").textContent = fairness == null ? "-" : `${fairness.toFixed(0)} / 100`;
+  document.getElementById("tradeCapDeltaA").textContent = capDeltaA == null ? "-" : fmtDeltaMoney(capDeltaA);
+  document.getElementById("tradeCapDeltaB").textContent = capDeltaB == null ? "-" : fmtDeltaMoney(capDeltaB);
+}
+
+function clearTradePackages({ keepMessage = false } = {}) {
+  state.tradeAssets = createEmptyTradeAssets();
+  renderTradeWorkspace();
+  if (!keepMessage) {
+    setTradeEvalText("Use evaluate to see cap/value impact.");
+    setTradeEvalCards();
+  }
+}
+
+function getTradePlayersForSide(side) {
+  const { playerKey, rosterKey } = tradeAssetKeys(side);
+  const roster = state[rosterKey] || [];
+  const rosterById = new Map(roster.map((player) => [player.id, player]));
+  return state.tradeAssets[playerKey]
+    .map((id) => rosterById.get(id))
+    .filter(Boolean);
+}
+
+function getTradePicksForSide(side) {
+  const { pickKey, picksKey } = tradeAssetKeys(side);
+  const picks = state[picksKey] || [];
+  const picksById = new Map(picks.map((pick) => [pick.id, pick]));
+  return state.tradeAssets[pickKey]
+    .map((id) => picksById.get(id))
+    .filter(Boolean);
+}
+
+function setTradePackageText(side) {
+  const el = document.getElementById(side === "A" ? "tradeSelectedAText" : "tradeSelectedBText");
+  if (!el) return;
+  const players = getTradePlayersForSide(side).map((player) => `${player.name} (${player.pos})`);
+  const picks = getTradePicksForSide(side).map((pick) => `${pick.year} R${pick.round} (${teamCode(pick.originalTeamId)})`);
+  const assets = [...players, ...picks];
+  el.textContent = `Team ${side} Assets: ${assets.length ? assets.join(", ") : "None"}`;
+}
+
+function toggleTradeAsset(side, type, id) {
+  const { playerKey, pickKey } = tradeAssetKeys(side);
+  const key = type === "pick" ? pickKey : playerKey;
+  const current = state.tradeAssets[key] || [];
+  state.tradeAssets[key] = current.includes(id) ? current.filter((value) => value !== id) : uniqueIds([...current, id]);
+  renderTradeWorkspace();
+}
+
 function queueTradePlayer(playerId) {
   const teamId = state.contractTeamId || state.dashboard?.controlledTeamId || "BUF";
+  const previousTeamA = getTradeTeamId("A");
   document.getElementById("tradeTeamA").value = teamId;
-  document.getElementById("tradeAIds").value = playerId;
+  if (previousTeamA !== teamId) {
+    clearTradePackages({ keepMessage: true });
+  }
+  state.tradeAssets.teamAPlayerIds = uniqueIds([...state.tradeAssets.teamAPlayerIds, playerId]);
   activateTab("transactionsTab");
   const player = state.contractRoster.find((entry) => entry.id === playerId);
-  setTradeEvalText(`${player?.name || playerId} queued for Team A. Add players or picks, then evaluate or execute.`);
+  renderTradeWorkspace();
+  setTradeEvalText(`${player?.name || playerId} queued for Team A. Add more assets, then evaluate or execute.`);
+  void loadPickAssets();
+}
+
+function renderTradeRosterTable(tableId, roster, side) {
+  const selectedIds = new Set(side === "A" ? state.tradeAssets.teamAPlayerIds : state.tradeAssets.teamBPlayerIds);
+  const rows = (roster || []).map((player) => ({
+    id: player.id,
+    player: player.name,
+    pos: player.pos,
+    age: player.age,
+    ovr: player.overall,
+    capHit: fmtMoney(player.contract?.capHit || 0),
+    action: ""
+  }));
+  renderTable(tableId, rows);
+  decoratePlayerColumnFromRows(tableId, rows, { idKeys: ["id"] });
+  document.getElementById(tableId)?.querySelectorAll("tr").forEach((tr, index) => {
+    if (index === 0) return;
+    const row = rows[index - 1];
+    const cell = tr.lastElementChild;
+    if (!cell || !row) return;
+    const isSelected = selectedIds.has(row.id);
+    cell.innerHTML = `<button data-trade-roster-side="${side}" data-trade-player-id="${escapeHtml(row.id)}">${isSelected ? "Remove" : "Add"}</button>`;
+  });
+}
+
+function renderTradeWorkspace() {
+  renderTradeRosterTable("tradeTeamARosterTable", state.tradeTeamARoster, "A");
+  renderTradeRosterTable("tradeTeamBRosterTable", state.tradeTeamBRoster, "B");
+  setTradePackageText("A");
+  setTradePackageText("B");
 }
 
 function deriveContractToolsFromRoster(roster, expiringPlayers) {
@@ -2109,15 +2226,31 @@ function renderNews() {
 }
 
 function renderPickAssets() {
-  const rows = (state.picks || []).map((pick) => ({
+  const rows = [
+    ...(state.tradeTeamAPicks || []).map((pick) => ({ ...pick, packageSide: "A" })),
+    ...(state.tradeTeamBPicks || []).map((pick) => ({ ...pick, packageSide: "B" }))
+  ].map((pick) => ({
+    side: `Team ${pick.packageSide}`,
     id: pick.id,
     yr: pick.year,
     rnd: pick.round,
     orig: teamCode(pick.originalTeamId),
     owner: teamCode(pick.ownerTeamId),
-    value: pick.value
+    value: pick.value,
+    action: ""
   }));
   renderTable("pickAssetsTable", rows);
+  document.getElementById("pickAssetsTable")?.querySelectorAll("tr").forEach((tr, index) => {
+    if (index === 0) return;
+    const row = rows[index - 1];
+    const cell = tr.lastElementChild;
+    if (!cell || !row) return;
+    const isSelected =
+      row.side === "Team A"
+        ? state.tradeAssets.teamAPickIds.includes(row.id)
+        : state.tradeAssets.teamBPickIds.includes(row.id);
+    cell.innerHTML = `<button data-trade-pick-side="${row.side === "Team A" ? "A" : "B"}" data-trade-pick-id="${escapeHtml(row.id)}">${isSelected ? "Remove" : "Add"}</button>`;
+  });
 }
 
 function renderNegotiationTargets(rows) {
@@ -2321,19 +2454,46 @@ function renderSimJobs() {
 }
 
 function renderComparePlayers() {
-  renderTable(
-    "comparePlayersTable",
-    (state.comparePlayers || []).map((player) => ({
-      id: player.id,
-      name: player.name,
-      tm: player.teamId,
-      pos: player.position,
-      ovr: player.overall,
-      fit: player.schemeFit ?? "-",
-      age: player.age,
-      dev: player.developmentTrait
-    }))
-  );
+  const rows = (state.comparePlayers || []).map((player) => ({
+    id: player.id,
+    name: player.name,
+    tm: teamCode(player.teamId),
+    pos: player.position,
+    ovr: player.overall,
+    fit: player.schemeFit ?? "-",
+    age: player.age,
+    dev: player.developmentTrait
+  }));
+  renderTable("comparePlayersTable", rows);
+  decoratePlayerColumnFromRows("comparePlayersTable", rows, { nameKey: "name", idKeys: ["id"] });
+  const label = document.getElementById("compareSelectedPlayersText");
+  if (label) {
+    const names = (state.comparePlayers || []).map((player) => player.name);
+    label.textContent = `Selected: ${state.comparePlayerIds.length} / 8${names.length ? ` (${names.join(", ")})` : ""}`;
+  }
+}
+
+function renderCompareSearchResults() {
+  const rows = (state.compareSearchResults || []).map((player) => ({
+    id: player.id,
+    player: player.name,
+    tm: teamCode(player.teamId),
+    pos: player.pos,
+    age: player.age,
+    ovr: player.overall,
+    status: player.status,
+    action: ""
+  }));
+  renderTable("comparePlayerSearchTable", rows);
+  decoratePlayerColumnFromRows("comparePlayerSearchTable", rows, { idKeys: ["id"] });
+  document.getElementById("comparePlayerSearchTable")?.querySelectorAll("tr").forEach((tr, index) => {
+    if (index === 0) return;
+    const row = rows[index - 1];
+    const cell = tr.lastElementChild;
+    if (!cell || !row) return;
+    const isSelected = state.comparePlayerIds.includes(row.id);
+    cell.innerHTML = `<button data-compare-player-toggle="${escapeHtml(row.id)}">${isSelected ? "Remove" : "Add"}</button>`;
+  });
 }
 
 function renderCommandPalette() {
@@ -2703,9 +2863,27 @@ async function loadNews() {
 }
 
 async function loadPickAssets() {
-  const controlledTeam = state.dashboard?.controlledTeamId || document.getElementById("tradeTeamA").value;
-  const payload = await api(`/api/picks?team=${encodeURIComponent(controlledTeam)}`);
-  state.picks = payload.picks || [];
+  const teamA = getTradeTeamId("A").toUpperCase();
+  const teamB = getTradeTeamId("B").toUpperCase();
+  const [teamARoster, teamBRoster, teamAPicks, teamBPicks] = await Promise.all([
+    api(`/api/roster?team=${encodeURIComponent(teamA)}`),
+    api(`/api/roster?team=${encodeURIComponent(teamB)}`),
+    api(`/api/picks?team=${encodeURIComponent(teamA)}`),
+    api(`/api/picks?team=${encodeURIComponent(teamB)}`)
+  ]);
+  state.tradeTeamARoster = teamARoster.roster || [];
+  state.tradeTeamBRoster = teamBRoster.roster || [];
+  state.tradeTeamAPicks = teamAPicks.picks || [];
+  state.tradeTeamBPicks = teamBPicks.picks || [];
+  const teamARosterIds = new Set(state.tradeTeamARoster.map((player) => player.id));
+  const teamBRosterIds = new Set(state.tradeTeamBRoster.map((player) => player.id));
+  const teamAPickIds = new Set(state.tradeTeamAPicks.map((pick) => pick.id));
+  const teamBPickIds = new Set(state.tradeTeamBPicks.map((pick) => pick.id));
+  state.tradeAssets.teamAPlayerIds = state.tradeAssets.teamAPlayerIds.filter((id) => teamARosterIds.has(id));
+  state.tradeAssets.teamBPlayerIds = state.tradeAssets.teamBPlayerIds.filter((id) => teamBRosterIds.has(id));
+  state.tradeAssets.teamAPickIds = state.tradeAssets.teamAPickIds.filter((id) => teamAPickIds.has(id));
+  state.tradeAssets.teamBPickIds = state.tradeAssets.teamBPickIds.filter((id) => teamBPickIds.has(id));
+  renderTradeWorkspace();
   renderPickAssets();
 }
 
@@ -2816,7 +2994,7 @@ async function loadSimJobs() {
 }
 
 async function loadComparePlayers() {
-  const ids = parseIds(document.getElementById("comparePlayerIdsInput").value);
+  const ids = state.comparePlayerIds.slice(0, 8);
   if (!ids.length) {
     state.comparePlayers = [];
     renderComparePlayers();
@@ -2825,6 +3003,18 @@ async function loadComparePlayers() {
   const payload = await api(`/api/compare/players?ids=${encodeURIComponent(ids.join(","))}`);
   state.comparePlayers = payload.players || [];
   renderComparePlayers();
+}
+
+async function searchComparePlayers() {
+  const query = document.getElementById("comparePlayerSearchInput").value.trim();
+  if (!query) {
+    state.compareSearchResults = [];
+    renderCompareSearchResults();
+    return;
+  }
+  const payload = await api(`/api/players/search?q=${encodeURIComponent(query)}&limit=12&includeRetired=1`);
+  state.compareSearchResults = payload.players || [];
+  renderCompareSearchResults();
 }
 
 async function loadRoster() {
@@ -3044,7 +3234,7 @@ async function loadTeamHistory() {
 }
 
 async function loadPlayerTimeline() {
-  const playerId = document.getElementById("playerTimelineId").value.trim();
+  const playerId = state.selectedHistoryPlayerId;
   if (!playerId) return;
   const payload = await api(`/api/history/player?playerId=${encodeURIComponent(playerId)}`);
   const rows = (payload.timeline?.timeline || []).map((entry) => ({
@@ -3060,6 +3250,54 @@ async function loadPlayerTimeline() {
     ints: entry.stats?.defense?.int || 0
   }));
   renderTable("playerTimelineTable", rows);
+}
+
+function setSelectedHistoryPlayer(player = null) {
+  state.selectedHistoryPlayerId = player?.id || null;
+  const label = document.getElementById("playerTimelineSelectedPlayerText");
+  if (label) {
+    label.textContent = player ? `Selected: ${player.name} (${player.pos})` : "Selected: None";
+  }
+  const button = document.getElementById("loadPlayerTimelineBtn");
+  if (button) button.disabled = !player;
+}
+
+function renderPlayerTimelineSearchResults() {
+  const rows = (state.historyPlayerSearchResults || []).map((player) => ({
+    id: player.id,
+    player: player.name,
+    tm: teamCode(player.teamId),
+    pos: player.pos,
+    age: player.age,
+    ovr: player.overall,
+    status: player.status,
+    action: ""
+  }));
+  renderTable("playerTimelineSearchTable", rows);
+  decoratePlayerColumnFromRows("playerTimelineSearchTable", rows, { idKeys: ["id"] });
+  document.getElementById("playerTimelineSearchTable")?.querySelectorAll("tr").forEach((tr, index) => {
+    if (index === 0) return;
+    const row = rows[index - 1];
+    const cell = tr.lastElementChild;
+    if (!cell || !row) return;
+    const isSelected = row.id === state.selectedHistoryPlayerId;
+    cell.innerHTML = `<button data-history-player-select="${escapeHtml(row.id)}">${isSelected ? "Selected" : "Select"}</button>`;
+  });
+}
+
+async function searchHistoryPlayers() {
+  const query = document.getElementById("playerTimelineSearchInput").value.trim();
+  if (!query) {
+    state.historyPlayerSearchResults = [];
+    renderPlayerTimelineSearchResults();
+    setSelectedHistoryPlayer(null);
+    return;
+  }
+  const payload = await api(`/api/players/search?q=${encodeURIComponent(query)}&limit=12&includeRetired=1`);
+  state.historyPlayerSearchResults = payload.players || [];
+  const nextSelection = state.historyPlayerSearchResults.find((player) => player.id === state.selectedHistoryPlayerId) || null;
+  setSelectedHistoryPlayer(nextSelection);
+  renderPlayerTimelineSearchResults();
 }
 
 function syncBootFilters() {
@@ -3432,91 +3670,83 @@ function bindEvents() {
     moveRosterBoard(button.dataset.playerId, button.dataset.rosterBoardMove === "up" ? -1 : 1);
   });
 
+  const buildTradePayload = () => ({
+    teamA: getTradeTeamId("A").toUpperCase(),
+    teamB: getTradeTeamId("B").toUpperCase(),
+    teamAPlayerIds: [...state.tradeAssets.teamAPlayerIds],
+    teamBPlayerIds: [...state.tradeAssets.teamBPlayerIds],
+    teamAPickIds: [...state.tradeAssets.teamAPickIds],
+    teamBPickIds: [...state.tradeAssets.teamBPickIds]
+  });
+
   document.getElementById("tradeBtn").addEventListener("click", () =>
     runAction(async () => {
-      const teamA = document.getElementById("tradeTeamA").value;
-      const teamB = document.getElementById("tradeTeamB").value;
-      const payload = {
-        teamA,
-        teamB,
-        teamAPlayerIds: parseIds(document.getElementById("tradeAIds").value),
-        teamBPlayerIds: parseIds(document.getElementById("tradeBIds").value),
-        teamAPickIds: parseIds(document.getElementById("tradeAPickIds").value),
-        teamBPickIds: parseIds(document.getElementById("tradeBPickIds").value)
-      };
-      const result = await api("/api/trade", {
-        method: "POST",
-        body: payload
-      });
-      const aDelta = result.valuation?.[teamA]?.delta || 0;
-      const bDelta = result.valuation?.[teamB]?.delta || 0;
-      setTradeEvalText(`Trade accepted. ${teamA} delta ${aDelta}, ${teamB} delta ${bDelta}`);
-      await Promise.all([loadState(), loadRoster(), loadFreeAgency(), loadDepthChart(), loadTransactionLog()]);
+      const payload = buildTradePayload();
+      if (payload.teamA === payload.teamB) throw new Error("Select two different teams.");
+      const result = await api("/api/trade", { method: "POST", body: payload });
+      const a = result.valuation?.[payload.teamA] || {};
+      const b = result.valuation?.[payload.teamB] || {};
+      const fairness = Math.max(0, 100 - Math.abs((a.delta || 0) - (b.delta || 0)) * 4);
+      setTradeEvalText(`Trade accepted. ${payload.teamA} delta ${a.delta || 0}, ${payload.teamB} delta ${b.delta || 0}`);
+      setTradeEvalCards({ fairness, capDeltaA: a.capDelta || 0, capDeltaB: b.capDelta || 0 });
+      clearTradePackages({ keepMessage: true });
+      await Promise.all([loadState(), loadRoster(), loadContractsTeam(), loadFreeAgency(), loadDepthChart(), loadTransactionLog(), loadPickAssets()]);
     }, "Executing trade...")
   );
 
-  document.getElementById("tradeTeamA").addEventListener("change", () =>
-    runAction(async () => {
-      const teamId = document.getElementById("tradeTeamA").value;
-      const payload = await api(`/api/picks?team=${encodeURIComponent(teamId)}`);
-      state.picks = payload.picks || [];
-      renderPickAssets();
-    }, "Loading pick assets...")
-  );
+  document.getElementById("clearTradePackageBtn").addEventListener("click", () => {
+    clearTradePackages();
+  });
+
+  ["tradeTeamA", "tradeTeamB"].forEach((id) => {
+    document.getElementById(id).addEventListener("change", () =>
+      runAction(async () => {
+        if (id === "tradeTeamA") {
+          state.tradeAssets.teamAPlayerIds = [];
+          state.tradeAssets.teamAPickIds = [];
+        } else {
+          state.tradeAssets.teamBPlayerIds = [];
+          state.tradeAssets.teamBPickIds = [];
+        }
+        setTradeEvalText("Use evaluate to see cap/value impact.");
+        setTradeEvalCards();
+        await loadPickAssets();
+      }, "Loading trade assets...")
+    );
+  });
 
   document.getElementById("evaluateTradeBtn").addEventListener("click", () =>
     runAction(async () => {
-      const teamA = document.getElementById("tradeTeamA").value;
-      const teamB = document.getElementById("tradeTeamB").value;
-      const payload = {
-        teamA,
-        teamB,
-        teamAPlayerIds: parseIds(document.getElementById("tradeAIds").value),
-        teamBPlayerIds: parseIds(document.getElementById("tradeBIds").value),
-        teamAPickIds: parseIds(document.getElementById("tradeAPickIds").value),
-        teamBPickIds: parseIds(document.getElementById("tradeBPickIds").value)
-      };
+      const payload = buildTradePayload();
+      if (payload.teamA === payload.teamB) throw new Error("Select two different teams.");
       const result = await api("/api/trade/evaluate", { method: "POST", body: payload });
-      const a = result.valuation?.[teamA];
-      const b = result.valuation?.[teamB];
+      const a = result.valuation?.[payload.teamA] || {};
+      const b = result.valuation?.[payload.teamB] || {};
+      const fairness = Math.max(0, 100 - Math.abs((a.delta || 0) - (b.delta || 0)) * 4);
       setTradeEvalText(
-        `${teamA}: in ${a?.incomingValue ?? 0} / out ${a?.outgoingValue ?? 0} | ${teamB}: in ${b?.incomingValue ?? 0} / out ${b?.outgoingValue ?? 0}`
+        `${payload.teamA}: in ${a.incomingValue ?? 0} / out ${a.outgoingValue ?? 0} | ${payload.teamB}: in ${b.incomingValue ?? 0} / out ${b.outgoingValue ?? 0}`
       );
+      setTradeEvalCards({ fairness, capDeltaA: a.capDelta || 0, capDeltaB: b.capDelta || 0 });
     }, "Evaluating trade...")
   );
 
-  document.getElementById("tradeWizardEvaluateBtn").addEventListener("click", () =>
-    runAction(async () => {
-      const teamA = document.getElementById("tradeTeamA").value;
-      const teamB = document.getElementById("tradeTeamB").value;
-      const parseWizardAssets = (text) => {
-        const ids = parseIds(text);
-        return {
-          players: ids.filter((id) => !id.startsWith("PICK-") && !id.startsWith("COMP-")),
-          picks: ids.filter((id) => id.startsWith("PICK-") || id.startsWith("COMP-"))
-        };
-      };
-      const aAssets = parseWizardAssets(document.getElementById("tradeWizardA").value);
-      const bAssets = parseWizardAssets(document.getElementById("tradeWizardB").value);
-      const result = await api("/api/trade/evaluate", {
-        method: "POST",
-        body: {
-          teamA,
-          teamB,
-          teamAPlayerIds: aAssets.players,
-          teamBPlayerIds: bAssets.players,
-          teamAPickIds: aAssets.picks,
-          teamBPickIds: bAssets.picks
-        }
-      });
-      const a = result.valuation?.[teamA] || {};
-      const b = result.valuation?.[teamB] || {};
-      const fairness = Math.max(0, 100 - Math.abs((a.delta || 0) - (b.delta || 0)) * 4);
-      document.getElementById("tradeFairnessScore").textContent = `${fairness.toFixed(0)} / 100`;
-      document.getElementById("tradeCapDeltaA").textContent = fmtDeltaMoney(a.capDelta || 0);
-      document.getElementById("tradeCapDeltaB").textContent = fmtDeltaMoney(b.capDelta || 0);
-    }, "Evaluating trade wizard...")
-  );
+  document.getElementById("tradeTeamARosterTable").addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-trade-player-id]");
+    if (!button) return;
+    toggleTradeAsset("A", "player", button.dataset.tradePlayerId || "");
+  });
+
+  document.getElementById("tradeTeamBRosterTable").addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-trade-player-id]");
+    if (!button) return;
+    toggleTradeAsset("B", "player", button.dataset.tradePlayerId || "");
+  });
+
+  document.getElementById("pickAssetsTable").addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-trade-pick-id]");
+    if (!button) return;
+    toggleTradeAsset(button.dataset.tradePickSide || "A", "pick", button.dataset.tradePickId || "");
+  });
 
   document.getElementById("loadContractsBtn").addEventListener("click", () =>
     runAction(loadContractsTeam, "Loading contracts...")
@@ -3871,6 +4101,20 @@ function bindEvents() {
   document.getElementById("comparePlayersBtn").addEventListener("click", () =>
     runAction(loadComparePlayers, "Comparing players...")
   );
+  document.getElementById("searchComparePlayersBtn").addEventListener("click", () =>
+    runAction(searchComparePlayers, "Searching players...")
+  );
+  document.getElementById("comparePlayerSearchTable").addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-compare-player-toggle]");
+    if (!button) return;
+    const playerId = button.dataset.comparePlayerToggle || "";
+    const current = state.comparePlayerIds.includes(playerId)
+      ? state.comparePlayerIds.filter((id) => id !== playerId)
+      : uniqueIds([...state.comparePlayerIds, playerId]).slice(0, 8);
+    state.comparePlayerIds = current;
+    renderCompareSearchResults();
+    void loadComparePlayers();
+  });
 
   document.getElementById("leadersCategory").addEventListener("change", () => {
     renderLeaders();
@@ -4040,6 +4284,17 @@ function bindEvents() {
   document.getElementById("loadPlayerTimelineBtn").addEventListener("click", () =>
     runAction(loadPlayerTimeline, "Loading player history...")
   );
+  document.getElementById("searchPlayerTimelineBtn").addEventListener("click", () =>
+    runAction(searchHistoryPlayers, "Searching player history...")
+  );
+  document.getElementById("playerTimelineSearchTable").addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-history-player-select]");
+    if (!button) return;
+    const player =
+      state.historyPlayerSearchResults.find((entry) => entry.id === (button.dataset.historyPlayerSelect || "")) || null;
+    setSelectedHistoryPlayer(player);
+    renderPlayerTimelineSearchResults();
+  });
   document.getElementById("loadTeamHistoryBtn").addEventListener("click", () => runAction(loadTeamHistory, "Loading team history..."));
 
   document.getElementById("saveBtn").addEventListener("click", () =>
@@ -4154,6 +4409,12 @@ function bindEvents() {
 async function init() {
   state.statsHiddenColumns = readStatsHiddenColumns();
   bindEvents();
+  renderTradeWorkspace();
+  renderPickAssets();
+  renderCompareSearchResults();
+  renderComparePlayers();
+  setSelectedHistoryPlayer(null);
+  renderPlayerTimelineSearchResults();
   activateTab("overviewTab");
   await loadCoreDashboard();
   setStatus("Ready");

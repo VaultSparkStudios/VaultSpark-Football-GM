@@ -338,6 +338,17 @@ async function handleApi(req, res, url) {
     return true;
   }
 
+  if (req.method === "GET" && url.pathname === "/api/players/search") {
+    const query = url.searchParams.get("q") || "";
+    const limit = toInt(url.searchParams.get("limit")) || 20;
+    const includeRetired = url.searchParams.get("includeRetired") !== "0";
+    sendJson(res, 200, {
+      ok: true,
+      players: session.searchPlayers({ query, limit, includeRetired })
+    });
+    return true;
+  }
+
   if (req.method === "GET" && url.pathname === "/api/free-agency/market") {
     const teamId = (url.searchParams.get("team") || session.controlledTeamId).toUpperCase();
     const limit = toInt(url.searchParams.get("limit")) || 60;

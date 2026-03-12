@@ -70,6 +70,9 @@ VaultSpark Football GM
   - client-only mode now loads in the browser again because node-only realism profile loading was moved out of the browser runtime path, and switching runtime mode on setup now reloads the selected runtime state
   - user-facing schedule/calendar/ticker/transaction/pick/player displays now resolve team IDs to generated team abbreviations instead of showing legacy NFL IDs
   - roster designation and retirement override panels now use table-driven player selection chips instead of typed raw player IDs
+  - trade packages now stage players and picks through roster/draft-asset tables instead of typed IDs
+  - compare and player-history tools now use player-name search tables and selection chips instead of typed player IDs
+  - Playwright's local dev-server harness now defaults to `localhost:4273` to avoid local port collisions during UI verification
 - Generated presentation work:
   - generated teams now use randomized names
   - generated players now carry deterministic physical/body data and `faceSeed`
@@ -131,7 +134,6 @@ VaultSpark Football GM
   - controlled-team box scores are archived and exposed through runtime + API (`/api/boxscores`, `/api/boxscore`)
 - Still incomplete or needing polish:
   - setup boot path still needs more profiling after the non-blocking save-load change
-  - some commissioner/admin flows still expose raw IDs, especially trade, compare, and player-history tools
   - the new box score ticker is functional but still stylistically basic
   - the stats page/player profile sample-matching pass is in progress and still needs more exact playoff/accolade formatting against the provided screenshots
   - stronger draft storylines / ranking variability still need a deeper pass
@@ -175,10 +177,8 @@ VaultSpark Football GM
 - Client-only mode is not yet production-grade.
 - No static build pipeline or Pages base-path support yet.
 - No worker-backed long sims or realism verification yet.
-- Team abbreviations are still tied to legacy team IDs rather than the new randomized identities.
 - The `Play` startup path may be broken despite the current test suite being green; no dedicated regression test exists yet for “create league in play mode and enter franchise successfully.”
 - Main-menu initialization and active-league checking need performance investigation; current user report is that this is taking far too long.
-- Some user-facing commissioner/admin actions still depend on raw player IDs.
 - The guide/rules footer is now much more complete, but it still needs to be maintained alongside future feature changes.
 - CPU roster/team-building AI still needs a deeper pass by scheme/age/contract/role.
 - Broader manual smoke coverage is still needed on commissioner/admin flows and long save continuity.
@@ -186,7 +186,7 @@ VaultSpark Football GM
 ## Near-Term Priorities
 1. Finish the immediate UX/runtime batch:
    - measure and reduce any remaining setup/main-menu load time, especially active-league checks
-   - remove remaining raw-ID dependence from roster/admin forms
+   - manually smoke the new trade/compare/history selection flows
    - continue polishing draft/scouting presentation and board workflow
    - isolate the remaining unrelated dirty worktree changes before the next feature batch
 2. Keep both runtimes aligned as those UX changes land.

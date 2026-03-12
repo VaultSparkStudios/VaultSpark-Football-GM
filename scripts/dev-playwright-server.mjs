@@ -3,7 +3,7 @@ import path from "node:path";
 
 const saveDir = path.resolve(".pw-saves");
 process.env.VSFGM_SAVE_DIR = saveDir;
-process.env.PORT = process.env.PORT || "4173";
+process.env.PORT = process.env.PORT || "4273";
 
 try {
   fs.rmSync(saveDir, { recursive: true, force: true });
