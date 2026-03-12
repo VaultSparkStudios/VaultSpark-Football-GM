@@ -1,3 +1,4 @@
+import { createZeroedCareerStats, createZeroedSeasonStats, mergeStats } from "../domain/playerFactory.js";
 import { PFR_RECENT_WEIGHTED_PROFILE } from "./profiles/pfrRecentWeightedProfile.js";
 import { PFR_CAREER_WEIGHTED_PROFILE } from "./profiles/pfrCareerWeightedProfile.js";
 import { clamp } from "../utils/rng.js";
@@ -51,6 +52,8 @@ const INTEGER_METRIC_PATHS = new Set([
   "gamesStarted"
 ]);
 
+const SEASON_STAT_KEYS = Object.keys(createZeroedSeasonStats());
+
 function isIntegerMetric(pathKey) {
   return INTEGER_METRIC_PATHS.has(pathKey);
 }
@@ -62,6 +65,54 @@ function roundStat(pathKey, value) {
 
 function allPlayers(league) {
   return [...league.players, ...league.retiredPlayers];
+}
+
+function getSeasonStatsSource(player, year, seasonType = "regular") {
+  const season = player.seasonStats?.[year];
+  if (!season) return null;
+  if (seasonType === "all") return season;
+  return season.splits?.[seasonType] || null;
+}
+
+function mergeSeasonPayload(target, seasonLike) {
+  if (!seasonLike) return target;
+  for (const key of SEASON_STAT_KEYS) {
+    const value = seasonLike[key];
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      if (!target[key]) target[key] = {};
+      mergeStats(target[key], value);
+    } else if (typeof value === "number") {
+      target[key] = key === "long" ? Math.max(target[key] || 0, value) : (target[key] || 0) + value;
+    }
+  }
+  return target;
+}
+
+function buildAggregateSeasonFromSplits(season) {
+  const aggregate = createZeroedSeasonStats();
+  if (season?.splits?.regular) mergeSeasonPayload(aggregate, season.splits.regular);
+  if (season?.splits?.playoffs) mergeSeasonPayload(aggregate, season.splits.playoffs);
+  return aggregate;
+}
+
+function rebuildSeasonAggregateFromSplits(player, year) {
+  const season = player.seasonStats?.[year];
+  if (!season?.splits) return;
+  const aggregate = buildAggregateSeasonFromSplits(season);
+  if (season.meta) aggregate.meta = season.meta;
+  aggregate.splits = season.splits;
+  player.seasonStats[year] = aggregate;
+}
+
+function rebuildCareerStatsFromSeasons(league) {
+  for (const player of allPlayers(league)) {
+    const career = createZeroedCareerStats();
+    for (const season of Object.values(player.seasonStats || {})) {
+      if (season?.splits) mergeSeasonPayload(career, buildAggregateSeasonFromSplits(season));
+      else mergeSeasonPayload(career, season);
+    }
+    player.careerStats = career;
+  }
 }
 
 function activeTeamPlayersByPosition(league, position) {
@@ -83,12 +134,12 @@ function qualifiedPlayersForPosition(league, position, depthPerTeam) {
   return qualified;
 }
 
-function qualifiedPlayersForPositionYear(league, position, depthPerTeam, year) {
+function qualifiedPlayersForPositionYear(league, position, depthPerTeam, year, seasonType = "regular") {
   const byTeam = new Map();
   for (const player of allPlayers(league)) {
-    const season = player.seasonStats?.[year];
+    const season = getSeasonStatsSource(player, year, seasonType);
     if (!season || player.position !== position || season.games <= 0) continue;
-    const seasonTeam = season.meta?.teamId || player.teamId;
+    const seasonTeam = player.seasonStats?.[year]?.meta?.teamId || player.teamId;
     if (!byTeam.has(seasonTeam)) byTeam.set(seasonTeam, []);
     byTeam.get(seasonTeam).push(player);
   }
@@ -97,8 +148,8 @@ function qualifiedPlayersForPositionYear(league, position, depthPerTeam, year) {
   for (const [, teamPlayers] of byTeam.entries()) {
     const top = teamPlayers
       .sort((a, b) => {
-        const seasonA = a.seasonStats?.[year];
-        const seasonB = b.seasonStats?.[year];
+        const seasonA = getSeasonStatsSource(a, year, seasonType);
+        const seasonB = getSeasonStatsSource(b, year, seasonType);
         return (
           (seasonB?.gamesStarted || 0) - (seasonA?.gamesStarted || 0) ||
           (seasonB?.games || 0) - (seasonA?.games || 0) ||
@@ -111,8 +162,8 @@ function qualifiedPlayersForPositionYear(league, position, depthPerTeam, year) {
   return qualified;
 }
 
-function enforceIntegrity(player, year) {
-  const season = player.seasonStats?.[year];
+function enforceIntegrity(player, year, seasonType = "regular") {
+  const season = getSeasonStatsSource(player, year, seasonType);
   if (!season) return;
   const toInt = (value) => Math.max(0, Math.round(Number(value) || 0));
 
@@ -167,20 +218,13 @@ function enforceIntegrity(player, year) {
   season.kicking.fgA50 = fgA50;
 }
 
-function syncCareerFromSeasonDelta(player, year, pathKey, oldValue, newValue) {
-  const delta = newValue - oldValue;
-  if (delta === 0) return;
-  const oldCareer = getAtPath(player.careerStats, pathKey);
-  setAtPath(player.careerStats, pathKey, Math.max(0, oldCareer + delta));
-  if (pathKey === "gamesStarted") {
-    player.careerStats.gamesStarted = Math.max(0, player.careerStats.gamesStarted + delta);
-  }
-}
-
-function rebalanceDiscreteMetric({ qualified, year, pathKey, targetAverage }) {
+function rebalanceDiscreteMetric({ qualified, year, pathKey, targetAverage, seasonType = "regular" }) {
   if (!qualified.length || !isIntegerMetric(pathKey)) return;
   const desiredTotal = Math.max(0, Math.round(Number(targetAverage || 0) * qualified.length));
-  let currentTotal = qualified.reduce((sum, player) => sum + Math.round(getAtPath(player.seasonStats?.[year], pathKey) || 0), 0);
+  let currentTotal = qualified.reduce(
+    (sum, player) => sum + Math.round(getAtPath(getSeasonStatsSource(player, year, seasonType), pathKey) || 0),
+    0
+  );
   if (currentTotal === desiredTotal) return;
 
   if (currentTotal < desiredTotal) {
@@ -188,19 +232,20 @@ function rebalanceDiscreteMetric({ qualified, year, pathKey, targetAverage }) {
       .slice()
       .sort(
         (a, b) =>
-          (b.seasonStats?.[year]?.gamesStarted || 0) - (a.seasonStats?.[year]?.gamesStarted || 0) ||
-          (b.seasonStats?.[year]?.games || 0) - (a.seasonStats?.[year]?.games || 0) ||
+          (getSeasonStatsSource(b, year, seasonType)?.gamesStarted || 0) -
+            (getSeasonStatsSource(a, year, seasonType)?.gamesStarted || 0) ||
+          (getSeasonStatsSource(b, year, seasonType)?.games || 0) -
+            (getSeasonStatsSource(a, year, seasonType)?.games || 0) ||
           (b.overall || 0) - (a.overall || 0)
       );
     let idx = 0;
     while (currentTotal < desiredTotal) {
       const player = sorted[idx % sorted.length];
-      const season = player.seasonStats?.[year];
+      const season = getSeasonStatsSource(player, year, seasonType);
       if (!season) break;
       const oldValue = Math.round(getAtPath(season, pathKey) || 0);
       const nextValue = oldValue + 1;
       setAtPath(season, pathKey, nextValue);
-      syncCareerFromSeasonDelta(player, year, pathKey, oldValue, nextValue);
       currentTotal += 1;
       idx += 1;
       if (idx > desiredTotal * 3 + sorted.length * 2) break;
@@ -212,20 +257,21 @@ function rebalanceDiscreteMetric({ qualified, year, pathKey, targetAverage }) {
     .slice()
     .sort(
       (a, b) =>
-        (getAtPath(b.seasonStats?.[year], pathKey) || 0) - (getAtPath(a.seasonStats?.[year], pathKey) || 0) ||
-        (a.seasonStats?.[year]?.gamesStarted || 0) - (b.seasonStats?.[year]?.gamesStarted || 0) ||
+        (getAtPath(getSeasonStatsSource(b, year, seasonType), pathKey) || 0) -
+          (getAtPath(getSeasonStatsSource(a, year, seasonType), pathKey) || 0) ||
+        (getSeasonStatsSource(a, year, seasonType)?.gamesStarted || 0) -
+          (getSeasonStatsSource(b, year, seasonType)?.gamesStarted || 0) ||
         (a.overall || 0) - (b.overall || 0)
     );
   let idx = 0;
   while (currentTotal > desiredTotal) {
     const player = sorted[idx % sorted.length];
-    const season = player.seasonStats?.[year];
+    const season = getSeasonStatsSource(player, year, seasonType);
     if (!season) break;
     const oldValue = Math.round(getAtPath(season, pathKey) || 0);
     if (oldValue > 0) {
       const nextValue = oldValue - 1;
       setAtPath(season, pathKey, nextValue);
-      syncCareerFromSeasonDelta(player, year, pathKey, oldValue, nextValue);
       currentTotal -= 1;
     }
     idx += 1;
@@ -233,13 +279,18 @@ function rebalanceDiscreteMetric({ qualified, year, pathKey, targetAverage }) {
   }
 }
 
-export function applySeasonRealismCalibration({ league, year, profile = PFR_RECENT_WEIGHTED_PROFILE }) {
-  const calibrationReport = { year, profileSource: profile.meta?.source || "custom", positions: {} };
+export function applySeasonRealismCalibration({
+  league,
+  year,
+  profile = PFR_RECENT_WEIGHTED_PROFILE,
+  seasonType = "regular"
+}) {
+  const calibrationReport = { year, seasonType, profileSource: profile.meta?.source || "custom", positions: {} };
 
   for (const [position, positionProfile] of Object.entries(profile.positions || {})) {
     const depth = Math.max(1, Math.floor(positionProfile.depthPerTeam || 1));
-    const qualified = qualifiedPlayersForPositionYear(league, position, depth, year).filter(
-      (p) => p.seasonStats?.[year] && p.seasonStats[year].games > 0
+    const qualified = qualifiedPlayersForPositionYear(league, position, depth, year, seasonType).filter(
+      (p) => getSeasonStatsSource(p, year, seasonType)?.games > 0
     );
     if (!qualified.length) {
       calibrationReport.positions[position] = { adjustedPlayers: 0, metrics: {} };
@@ -249,21 +300,21 @@ export function applySeasonRealismCalibration({ league, year, profile = PFR_RECE
     const metricReport = {};
     for (const [pathKey, targetAverage] of Object.entries(positionProfile.metrics || {})) {
       const actualAverage =
-        qualified.reduce((sum, player) => sum + getAtPath(player.seasonStats[year], pathKey), 0) / qualified.length;
+        qualified.reduce((sum, player) => sum + getAtPath(getSeasonStatsSource(player, year, seasonType), pathKey), 0) /
+        qualified.length;
 
       if (!actualAverage || !Number.isFinite(actualAverage)) {
         if (targetAverage > 0) {
           for (const player of qualified) {
-            const season = player.seasonStats[year];
-            const oldValue = getAtPath(season, pathKey);
+            const season = getSeasonStatsSource(player, year, seasonType);
             const seeded = roundStat(pathKey, targetAverage);
             setAtPath(season, pathKey, seeded);
-            syncCareerFromSeasonDelta(player, year, pathKey, oldValue, seeded);
           }
         }
-        rebalanceDiscreteMetric({ qualified, year, pathKey, targetAverage });
+        rebalanceDiscreteMetric({ qualified, year, pathKey, targetAverage, seasonType });
         const postAverage =
-          qualified.reduce((sum, player) => sum + getAtPath(player.seasonStats[year], pathKey), 0) / qualified.length;
+          qualified.reduce((sum, player) => sum + getAtPath(getSeasonStatsSource(player, year, seasonType), pathKey), 0) /
+          qualified.length;
         metricReport[pathKey] = {
           targetAverage,
           actualAverage: 0,
@@ -281,27 +332,29 @@ export function applySeasonRealismCalibration({ league, year, profile = PFR_RECE
       };
 
       for (const player of qualified) {
-        const season = player.seasonStats[year];
-        const oldValue = getAtPath(season, pathKey);
-        const scaled = roundStat(pathKey, oldValue * multiplier);
+        const season = getSeasonStatsSource(player, year, seasonType);
+        const scaled = roundStat(pathKey, getAtPath(season, pathKey) * multiplier);
         setAtPath(season, pathKey, scaled);
-        syncCareerFromSeasonDelta(player, year, pathKey, oldValue, scaled);
       }
 
-      rebalanceDiscreteMetric({ qualified, year, pathKey, targetAverage });
+      rebalanceDiscreteMetric({ qualified, year, pathKey, targetAverage, seasonType });
 
       const postAverage =
-        qualified.reduce((sum, player) => sum + getAtPath(player.seasonStats[year], pathKey), 0) / qualified.length;
+        qualified.reduce((sum, player) => sum + getAtPath(getSeasonStatsSource(player, year, seasonType), pathKey), 0) /
+        qualified.length;
       metricReport[pathKey].postAverage = Number(postAverage.toFixed(2));
     }
 
-    for (const player of qualified) enforceIntegrity(player, year);
+    for (const player of qualified) enforceIntegrity(player, year, seasonType);
 
     calibrationReport.positions[position] = {
       adjustedPlayers: qualified.length,
       metrics: metricReport
     };
   }
+
+  for (const player of allPlayers(league)) rebuildSeasonAggregateFromSplits(player, year);
+  rebuildCareerStatsFromSeasons(league);
 
   return calibrationReport;
 }
@@ -566,15 +619,21 @@ export function buildCareerCalibrationSnapshot({
   return snapshot;
 }
 
-export function buildPositionCalibrationSnapshot({ league, year, profile = PFR_RECENT_WEIGHTED_PROFILE }) {
+export function buildPositionCalibrationSnapshot({ league, year, profile = PFR_RECENT_WEIGHTED_PROFILE, seasonType = "regular" }) {
   const snapshot = {};
   for (const [position, positionProfile] of Object.entries(profile.positions)) {
-    const qualified = qualifiedPlayersForPositionYear(league, position, positionProfile.depthPerTeam || 1, year);
+    const qualified = qualifiedPlayersForPositionYear(
+      league,
+      position,
+      positionProfile.depthPerTeam || 1,
+      year,
+      seasonType
+    );
     const metrics = {};
     for (const metricPath of Object.keys(positionProfile.metrics)) {
       const average =
         qualified.length > 0
-          ? qualified.reduce((sum, player) => sum + getAtPath(player.seasonStats[year], metricPath), 0) /
+          ? qualified.reduce((sum, player) => sum + getAtPath(getSeasonStatsSource(player, year, seasonType), metricPath), 0) /
             qualified.length
           : 0;
       metrics[metricPath] = Number(average.toFixed(2));
@@ -584,7 +643,8 @@ export function buildPositionCalibrationSnapshot({ league, year, profile = PFR_R
       averageGames: qualified.length
         ? Number(
             (
-              qualified.reduce((sum, player) => sum + (player.seasonStats?.[year]?.games || 0), 0) / qualified.length
+              qualified.reduce((sum, player) => sum + (getSeasonStatsSource(player, year, seasonType)?.games || 0), 0) /
+              qualified.length
             ).toFixed(2)
           )
         : 0,

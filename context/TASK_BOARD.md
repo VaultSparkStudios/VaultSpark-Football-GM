@@ -1,6 +1,7 @@
 # Task Board
 
 ## Now
+- Compare the current PFR-derived starter baselines against refreshed 2025 NFL/PFF data and decide whether the simulator needs deeper passing/coverage subratings or just a regenerated realism profile
 - Verify the next GitHub push clears both `CI` and `Deploy Backend Runtime` after the realism-regression and GHCR-tag fixes
 - Validate whether any remaining setup/main-menu latency still needs another trim after the new lazy browser bootstrap
 - Feed the new world-state deeper into any remaining owner expectation loops and transaction AI edges

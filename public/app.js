@@ -186,29 +186,29 @@ const GUIDE_SECTIONS = [
 
 const STATS_BENCHMARK_HINTS = {
   passing: {
-    QB: "Starter-qualified QB baseline: QB1 sample, regular season, about 534 att, 3,850 yds, 25 TD, 12 INT, plus 44 rush att.",
+    QB: "Starter-qualified QB baseline: QB1 sample, regular season, about 534 att, 3,850 yds, 25 TD, 12 INT, plus 44 rush att. That is roughly 31.4 att/g, 226.5 yds/g, and 1.5 pass TD/g over 17 games.",
     default:
       "Passing NFL averages here are starter-qualified QB baselines, not all-player averages. Select QB for the clearest apples-to-apples comparison."
   },
   rushing: {
-    QB: "QB rushing baseline: primary starters average about 44 att, 218 yds, and 2 TD over a regular season.",
-    RB: "Starter-qualified RB baseline: top two backs per team average about 162 att, 708 rush yds, 6 rush TD, plus 43 targets and 241 rec yds.",
+    QB: "QB rushing baseline: primary starters average about 44 att, 218 yds, and 2 TD over a regular season, or about 2.6 att/g and 12.8 yds/g.",
+    RB: "Starter-qualified RB baseline: top two backs per team average about 162 att, 708 rush yds, 6 rush TD, plus 43 targets and 241 rec yds. That is roughly 9.5 carries/g and 41.6 rush yds/g.",
     WR: "WR rushing usage is situational, so NFL rushing baselines are not especially meaningful for this view.",
     TE: "TE rushing usage is situational, so NFL rushing baselines are not especially meaningful for this view.",
     default:
       "Rushing NFL averages vary hard by position. For true benchmark comparisons, use QB or RB rather than all-player rushing rows."
   },
   receiving: {
-    RB: "Receiving RB baseline: starter-qualified backs average about 43 targets, 31 catches, 241 yds, and 2 TD.",
-    WR: "Starter-qualified WR baseline: top three receivers per team average about 88 targets, 58 catches, 761 yds, and 5 TD.",
-    TE: "Starter-qualified TE baseline: TE1 sample averages about 77 targets, 50 catches, 578 yds, and 4 TD.",
+    RB: "Receiving RB baseline: starter-qualified backs average about 43 targets, 31 catches, 241 yds, and 2 TD, or about 2.5 targets/g and 14.2 rec yds/g.",
+    WR: "Starter-qualified WR baseline: top three receivers per team average about 88 targets, 58 catches, 761 yds, and 5 TD, or about 5.2 targets/g and 44.8 rec yds/g.",
+    TE: "Starter-qualified TE baseline: TE1 sample averages about 77 targets, 50 catches, 578 yds, and 4 TD, or about 4.5 targets/g and 34.0 rec yds/g.",
     default:
       "Receiving NFL averages depend on role. Select WR, TE, or RB for a position-specific starter-qualified benchmark."
   },
   defense: {
-    DL: "Starter-qualified DL baseline: top four linemen per team average about 45 tackles, 6.2 sacks, 3.1 pass breakups, and 0.3 INT.",
-    LB: "Starter-qualified LB baseline: top three linebackers per team average about 91 tackles, 3 sacks, 5 pass breakups, and 1 INT.",
-    DB: "Starter-qualified DB baseline: top four defensive backs per team average about 68 tackles, 1.1 sacks, 10.2 pass breakups, and 2.1 INT.",
+    DL: "Starter-qualified DL baseline: top four linemen per team average about 45 tackles, 6.2 sacks, 3.1 pass breakups, and 0.3 INT, or about 2.6 tackles/g and 0.36 sacks/g.",
+    LB: "Starter-qualified LB baseline: top three linebackers per team average about 91 tackles, 3 sacks, 5 pass breakups, and 1 INT, or about 5.4 tackles/g.",
+    DB: "Starter-qualified DB baseline: top four defensive backs per team average about 68 tackles, 1.1 sacks, 10.2 pass breakups, and 2.1 INT, or about 4.0 tackles/g and 0.6 pass breakups/g.",
     default:
       "Defensive NFL averages vary by room. Select DL, LB, or DB to compare against a starter-qualified baseline."
   },
@@ -217,11 +217,11 @@ const STATS_BENCHMARK_HINTS = {
     default: "Blocking baselines are only meaningful for OL starter samples."
   },
   kicking: {
-    K: "Starter-qualified K baseline: regular-season K1 sample averages about 34 FGA, 29 FGM, 37 XPA, and 35 XPM.",
+    K: "Starter-qualified K baseline: regular-season K1 sample averages about 34 FGA, 29 FGM, 37 XPA, and 35 XPM, or about 2.0 FGA/g and 2.2 XPA/g.",
     default: "Kicking baselines are based on one primary kicker per team over the regular season."
   },
   punting: {
-    P: "Starter-qualified P baseline: regular-season P1 sample averages about 64 punts, 3,005 yds, and 24 inside-the-20 punts.",
+    P: "Starter-qualified P baseline: regular-season P1 sample averages about 64 punts, 3,005 yds, and 24 inside-the-20 punts, or about 3.8 punts/g.",
     default: "Punting baselines are based on one primary punter per team over the regular season."
   },
   snaps: {

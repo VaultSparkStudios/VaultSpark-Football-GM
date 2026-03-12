@@ -3,6 +3,11 @@
 Last updated: 2026-03-12
 
 What was completed:
+- Fixed the broken regular-season player stats path:
+  - season realism calibration now updates the `regular` split that the stats UI and player profile views read
+  - aggregate season totals and career totals are rebuilt from regular/playoff splits after calibration, so verification snapshots and table views no longer disagree
+  - the starter-qualified season regression now validates the regular-season split directly and includes a kicker sample that would have caught the previous bug
+- Updated the stats benchmark hint copy with approximate per-game equivalents so the player stats area reads closer to how users compare position output in practice
 - Diagnosed the failing GitHub Actions runs on `main`:
   - `CI` was failing in `npm test` because `test/realism-career-regression.test.js` exceeded the career out-of-range guardrail
   - `Deploy Backend Runtime` was failing because GHCR tags used the mixed-case `github.repository_owner`, which Docker rejects
@@ -58,9 +63,12 @@ What was completed:
   - added a regression that checks starter-qualified season averages against weighted position baselines
 - Added a filter-aware starter-qualified benchmark hint to the stats tab so users can tell when they are comparing against position-specific regular-season starter baselines versus broader all-player/team views
 - Revalidated the current gameplay/client batch with:
+  - `node --check src/stats/realismCalibrator.js`
+  - `node --check test/stats-regression.test.js`
+  - `node --check public/app.js`
+  - `node --test --test-isolation=none test/stats-regression.test.js test/realism-career-regression.test.js`
   - `node --test --test-isolation=none test/realism-career-regression.test.js`
   - `npm.cmd test`
-  - `node --check public/app.js`
   - `node --check public/setup.js`
   - `node --check public/lib/api/createApiClient.js`
   - `node --check src/stats/statBook.js`
@@ -85,10 +93,11 @@ What is mid-flight:
 - Challenge restrictions are much more mechanical now, though edge-case acquisition paths may still be worth auditing later
 
 What to do next:
-1. Push the workflow/profile fixes and confirm the next GitHub Actions run clears both `CI` and `Deploy Backend Runtime`
-2. Use the new setup diagnostics to decide whether any remaining setup/main-menu latency still needs another trim after the lazy browser bootstrap
-3. Feed the new world-state deeper into any remaining owner expectation loops and transaction AI edges
-4. Extend the new benchmark/qualification hint pattern to any other views that still imply apples-to-apples NFL averages without saying so
+1. Compare the current PFR-derived starter baselines against refreshed 2025 NFL/PFF data and decide whether a regenerated realism profile is enough or whether the simulator needs deeper passing/coverage subratings
+2. Push the regular-season stats fix and confirm GitHub stays green on the next run
+3. Use the new setup diagnostics to decide whether any remaining setup/main-menu latency still needs another trim after the lazy browser bootstrap
+4. Feed the new world-state deeper into any remaining owner expectation loops and transaction AI edges
+5. Extend the new benchmark/qualification hint pattern to any other views that still imply apples-to-apples NFL averages without saying so
 
 Important constraints:
 - The parked stash is named `park unrelated realism-runtime work after depth-chart commit`; do not lose it if that work is still needed
