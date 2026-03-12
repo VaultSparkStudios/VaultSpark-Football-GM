@@ -233,39 +233,38 @@
             <div class="row">
               <label>Team A <select id="tradeTeamA"></select></label>
               <label>Team B <select id="tradeTeamB"></select></label>
+              <button id="clearTradePackageBtn">Clear Packages</button>
             </div>
             <div class="row">
-              <label>Team A Player IDs
-                <input id="tradeAIds" type="text" placeholder="comma-separated IDs" />
-              </label>
-              <label>Team B Player IDs
-                <input id="tradeBIds" type="text" placeholder="comma-separated IDs" />
-              </label>
-            </div>
-            <div class="row">
-              <label>Team A Pick IDs
-                <input id="tradeAPickIds" type="text" placeholder="comma-separated pick IDs" />
-              </label>
-              <label>Team B Pick IDs
-                <input id="tradeBPickIds" type="text" placeholder="comma-separated pick IDs" />
-              </label>
+              <span id="tradeSelectedAText" class="chip">Team A Assets: None</span>
+              <span id="tradeSelectedBText" class="chip">Team B Assets: None</span>
             </div>
             <div class="row">
               <button id="evaluateTradeBtn">Evaluate Trade</button>
               <button id="tradeBtn" data-testid="trade-btn">Execute Trade</button>
               <span id="tradeEvalText" class="small">Use evaluate to see cap/value impact.</span>
             </div>
-            <div class="table-wrap"><table id="pickAssetsTable"></table></div>
-            <div class="row compact">
-              <label>Wizard Team A Assets <input id="tradeWizardA" type="text" placeholder="IDs + picks" /></label>
-              <label>Wizard Team B Assets <input id="tradeWizardB" type="text" placeholder="IDs + picks" /></label>
-              <button id="tradeWizardEvaluateBtn">Wizard Evaluate</button>
-            </div>
             <div class="cards">
               <article><h3>Fairness</h3><p id="tradeFairnessScore">-</p></article>
               <article><h3>Cap Delta A</h3><p id="tradeCapDeltaA">-</p></article>
               <article><h3>Cap Delta B</h3><p id="tradeCapDeltaB">-</p></article>
             </div>
+          </div>
+
+          <div class="panel split">
+            <div>
+              <h3>Team A Package Board</h3>
+              <div class="table-wrap"><table id="tradeTeamARosterTable" data-testid="trade-team-a-table"></table></div>
+            </div>
+            <div>
+              <h3>Team B Package Board</h3>
+              <div class="table-wrap"><table id="tradeTeamBRosterTable" data-testid="trade-team-b-table"></table></div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h3>Draft Pick Assets</h3>
+            <div class="table-wrap"><table id="pickAssetsTable" data-testid="trade-picks-table"></table></div>
           </div>
 
           <div class="panel">
@@ -455,8 +454,10 @@
                   <option value="all">Combined</option>
                 </select>
               </label>
-              <label>Compare Player IDs <input id="comparePlayerIdsInput" type="text" placeholder="id1,id2" /></label>
-              <button id="comparePlayersBtn">Compare Players</button>
+              <label>Compare Players <input id="comparePlayerSearchInput" type="text" placeholder="search by player name" /></label>
+              <button id="searchComparePlayersBtn">Search</button>
+              <button id="comparePlayersBtn">Compare Selected</button>
+              <span id="compareSelectedPlayersText" class="chip">Selected: 0 / 8</span>
             </div>
             <div class="row compact">
               <details>
@@ -469,8 +470,9 @@
               <button id="nextStatsPageBtn">Next</button>
               <span id="statsPageText" class="small"></span>
             </div>
-              <div class="table-wrap"><table id="statsTable" data-testid="stats-table"></table></div>
-              <div class="table-wrap"><table id="comparePlayersTable"></table></div>
+            <div class="table-wrap"><table id="statsTable" data-testid="stats-table"></table></div>
+            <div class="table-wrap"><table id="comparePlayerSearchTable" data-testid="compare-player-search-table"></table></div>
+            <div class="table-wrap"><table id="comparePlayersTable" data-testid="compare-players-table"></table></div>
           </div>
           <div class="panel">
             <h2>Advanced Analytics</h2>
@@ -567,9 +569,12 @@
             <div>
               <h2>Player & Team History</h2>
               <div class="row">
-                <label>Player ID <input id="playerTimelineId" type="text" /></label>
+                <label>Player Search <input id="playerTimelineSearchInput" type="text" placeholder="search by player name" /></label>
+                <button id="searchPlayerTimelineBtn">Search</button>
+                <span id="playerTimelineSelectedPlayerText" class="chip">Selected: None</span>
                 <button id="loadPlayerTimelineBtn">Load Player History</button>
               </div>
+              <div class="table-wrap"><table id="playerTimelineSearchTable" data-testid="player-timeline-search-table"></table></div>
               <div class="table-wrap"><table id="playerTimelineTable" data-testid="player-timeline-table"></table></div>
               <div class="row">
                 <label>Team <select id="teamHistorySelect"></select></label>

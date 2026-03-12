@@ -20,14 +20,18 @@ What was completed:
 - Made setup boot non-blocking for save discovery by allowing `/api/setup/init` to skip saves, marking the page ready from active-league/team state, and hydrating `/api/saves` in the background
 - Fixed the client-only runtime import boundary by moving node-only realism profile loading out of the browser path, and made runtime-mode switching reload setup state for the selected runtime
 - Added regression coverage for switching between server-backed and client-only mode on the setup menu
+- Replaced the remaining commissioner raw-ID entry points in trade, compare, and player-history with staged roster/pick tables plus player-name search/selection flows
+- Added a shared `/api/players/search` path in both server-backed and client-only runtimes so compare/history tools no longer depend on typed IDs
+- Updated Playwright app coverage for the staged trade flow and the compare/history search-driven flow
+- Moved the repo-native Playwright dev-server default from `4173` to `4273` because an unrelated local app was already occupying `4173` during verification
 
 What is mid-flight:
 - The unrelated realism/runtime work is still parked in a local stash and has not been reincorporated
-- The next UX/runtime batch still needs to tackle the remaining raw-ID commissioner/admin flows outside designation/retirement override and any remaining setup/main-menu latency after the non-blocking save-load and client-runtime import fixes
+- The next UX/runtime batch still needs to tackle any remaining setup/main-menu latency after the non-blocking save-load and client-runtime import fixes
 
 What to do next:
 1. Measure and trim any remaining setup/main-menu latency, especially any residual runtime-mode startup overhead after the client-runtime import fix
-2. Remove the remaining raw-ID dependence from the remaining commissioner/admin flows such as trade, compare, and player-history lookups
+2. Smoke the updated trade/compare/history selection flows manually if any commissioner edge cases still need coverage
 3. Reconcile the separate Studio repo docs/templates to match Studio `AGENTS.md` once that worktree is safe to edit
 
 Important constraints:

@@ -189,3 +189,27 @@ test("local api runtime setup init defers backups by default", async () => {
   assert.equal(withBackups.payload.backupsDeferred, false);
   assert.ok(Array.isArray(withBackups.payload.backups));
 });
+
+test("local api runtime exposes player search for name-based admin tools", async () => {
+  const runtime = createLocalApiRuntime({
+    storage: createMemoryStorage(),
+    now: (() => {
+      let tick = 0;
+      return () => 1_730_000_000_000 + tick++;
+    })(),
+    scheduler: (fn) => fn()
+  });
+
+  await runtime.request("/api/new-league", {
+    method: "POST",
+    body: { seed: 4040, startYear: 2026, controlledTeamId: "BUF", mode: "play", eraProfile: "modern" }
+  });
+
+  const roster = await runtime.request("/api/roster?team=BUF");
+  const player = roster.payload.roster[0];
+  assert.ok(player?.name);
+
+  const search = await runtime.request(`/api/players/search?q=${encodeURIComponent(player.name)}&limit=5&includeRetired=1`);
+  assert.equal(search.status, 200);
+  assert.ok(search.payload.players.some((entry) => entry.id === player.id));
+});

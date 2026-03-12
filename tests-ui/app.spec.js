@@ -142,8 +142,17 @@ test("contracts, trade, calendar, and transaction log are operational", async ({
   await expect(page.locator("#contractActionText")).toContainText("restructured");
 
   await page.click('[data-testid="tab-transactions"]');
+  await expect(page.locator("#tradeAIds")).toHaveCount(0);
   await page.selectOption("#tradeTeamA", "BUF");
+  await waitGameReady(page);
   await page.selectOption("#tradeTeamB", "MIA");
+  await waitGameReady(page);
+  await page.locator('#tradeTeamARosterTable button[data-trade-player-id]').first().click();
+  await page.locator('#tradeTeamBRosterTable button[data-trade-player-id]').first().click();
+  await expect(page.locator("#tradeSelectedAText")).not.toContainText("None");
+  await expect(page.locator("#tradeSelectedBText")).not.toContainText("None");
+  await page.click("#evaluateTradeBtn");
+  await waitGameReady(page);
   await page.click("#tradeBtn");
   await waitGameReady(page);
 
@@ -163,6 +172,47 @@ test("contracts, trade, calendar, and transaction log are operational", async ({
   await page.click("#loadTxBtn");
   await waitGameReady(page);
   await expect(page.locator("#txTable tr").nth(1)).toBeVisible();
+});
+
+test("compare and player history flows use search-driven selection", async ({ page }) => {
+  await createLeagueFromSetup(page);
+
+  await page.click('[data-testid="tab-roster"]');
+  await page.click("#loadRosterBtn");
+  await waitGameReady(page);
+  const rosterPlayers = page.locator('#rosterTable button[data-player-id]');
+  await expect(rosterPlayers.first()).toBeVisible();
+  const firstPlayer = (await rosterPlayers.nth(0).textContent())?.trim() || "";
+  const secondPlayer = (await rosterPlayers.nth(1).textContent())?.trim() || firstPlayer;
+  expect(firstPlayer).toBeTruthy();
+
+  await page.click('[data-testid="tab-stats"]');
+
+  await expect(page.locator("#comparePlayerIdsInput")).toHaveCount(0);
+  await page.fill("#comparePlayerSearchInput", firstPlayer);
+  await page.click("#searchComparePlayersBtn");
+  await waitGameReady(page);
+  await page.locator('#comparePlayerSearchTable button[data-compare-player-toggle]').first().click();
+
+  await page.fill("#comparePlayerSearchInput", secondPlayer);
+  await page.click("#searchComparePlayersBtn");
+  await waitGameReady(page);
+  await page.locator('#comparePlayerSearchTable button[data-compare-player-toggle]').first().click();
+
+  await page.click("#comparePlayersBtn");
+  await waitGameReady(page);
+  await expect(page.locator("#comparePlayersTable tr").nth(1)).toBeVisible();
+
+  await page.click('[data-testid="tab-history"]');
+  await expect(page.locator("#playerTimelineId")).toHaveCount(0);
+  await page.fill("#playerTimelineSearchInput", firstPlayer);
+  await page.click("#searchPlayerTimelineBtn");
+  await waitGameReady(page);
+  await page.locator('#playerTimelineSearchTable button[data-history-player-select]').first().click();
+  await expect(page.locator("#playerTimelineSelectedPlayerText")).not.toContainText("Selected: None");
+  await page.click("#loadPlayerTimelineBtn");
+  await waitGameReady(page);
+  await expect(page.locator("#playerTimelineTable")).toContainText(/No data|No rows|year/i);
 });
 
 test("scouting lock persists across save and load", async ({ page }) => {

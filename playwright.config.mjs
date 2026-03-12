@@ -7,14 +7,17 @@ export default defineConfig({
   timeout: 90_000,
   expect: { timeout: 10_000 },
   use: {
-    baseURL: "http://127.0.0.1:4173",
+    baseURL: "http://localhost:4273",
     headless: true,
     trace: "retain-on-failure",
     screenshot: "only-on-failure"
   },
   webServer: {
     command: "node scripts/dev-playwright-server.mjs",
-    url: "http://127.0.0.1:4173",
+    url: "http://localhost:4273",
+    env: {
+      PORT: "4273"
+    },
     reuseExistingServer: false,
     timeout: 30_000
   }

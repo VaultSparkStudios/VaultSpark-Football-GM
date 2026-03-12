@@ -36,12 +36,24 @@ Completed:
 - Added runtime coverage for `includeSaves=0` and revalidated the setup-dependent Playwright specs
 - Moved node-only realism profile loading out of the browser runtime path so client-only mode can import `localApiRuntime` under the dev server again
 - Made setup runtime-mode switching reload active/save state for the selected runtime and added Playwright coverage for switching between server-backed and client-only mode
+- Replaced the remaining trade, compare, and player-history raw-ID inputs with staged roster/pick tables plus player-name search selection flows
+- Added `/api/players/search` in both runtime modes and extended the local runtime test coverage for the new lookup path
+- Updated the Playwright harness from port `4173` to `4273` to avoid an unrelated local app that was already bound to `4173`
+- Revalidated the changed surfaces with:
+  - `node --check public/app.js`
+  - `node --check scripts/dev-playwright-server.mjs`
+  - `node --check src/server.js`
+  - `node --check src/app/api/localApiRuntime.js`
+  - `node --check src/runtime/GameSession.js`
+  - `node --check tests-ui/app.spec.js`
+  - `node --test --test-isolation=none test/local-api-runtime.test.js`
+  - `npx.cmd playwright test tests-ui/app.spec.js tests-ui/play-mode-smoke.spec.js --reporter=line --workers=1 -g "contracts, trade, calendar, and transaction log are operational|compare and player history flows use search-driven selection|create league in play mode reaches the franchise screen"`
 
 Open problems:
 - Setup/main-menu initialization still needs measuring after the non-blocking save-load and client-runtime import fixes and may need additional trimming
 - GitHub Settings -> Pages and optional repo variables cannot be verified from repo files alone
 - A full `npm.cmd test` invocation was not rerun in this shell session, so verification here relies on the focused suites that passed
-- Trade, compare, and player-history commissioner tools still expose typed player IDs and need the same UX cleanup pass
+- The unrelated realism/runtime stash is still parked and needs to stay isolated until that work is intentionally resumed
 
 Recommended next action:
-- Measure the remaining setup/main-menu latency after this client-runtime import fix, then remove the remaining raw-ID commissioner/admin flows outside designation/retirement override
+- Measure the remaining setup/main-menu latency after this client-runtime import fix, then do a focused manual smoke pass on the new trade/compare/history selection flows
