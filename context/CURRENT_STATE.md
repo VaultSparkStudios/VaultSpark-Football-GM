@@ -45,6 +45,7 @@ Build status:
   - user top-10 draft selections are blocked in `no-top-10-picks`, and CPU draft progression no longer stalls on those picks
 - Focused validation passed for:
   - `node --check public/app.js`
+  - `node --check public/lib/api/createApiClient.js`
   - `node --check public/setup.js`
   - `node --check src/config/leagueSetup.js`
   - `node --check src/runtime/applyLeagueSetup.js`
@@ -53,8 +54,10 @@ Build status:
   - `node --check src/engine/gameSimulator.js`
   - `node --check src/engine/offseasonSimulator.js`
   - `node --check src/server.js`
+  - `node --check src/stats/statBook.js`
+  - `node --check test/stats-regression.test.js`
   - `node --check test/world-state-next-step.test.js`
-  - `node --test --test-isolation=none test/world-state-next-step.test.js test/feature-pack-v1.test.js test/new-systems.test.js test/session-actions.test.js test/local-api-runtime.test.js test/strategy-contract-scouting.test.js`
+  - `node --test --test-isolation=none test/world-state-next-step.test.js test/feature-pack-v1.test.js test/new-systems.test.js test/session-actions.test.js test/local-api-runtime.test.js test/strategy-contract-scouting.test.js test/stats-regression.test.js`
   - `npm.cmd run build:pages`
   - `npm.cmd run smoke:pages`
 
