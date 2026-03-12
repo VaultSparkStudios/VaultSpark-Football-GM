@@ -67,6 +67,7 @@ VaultSpark Football GM
   - game-page startup now loads the core dashboard first and hydrates heavier panels in the background so `Play` mode no longer looks hung on entry
   - setup init now defers backup loading on first open, and normal save listing skips backup metadata work
   - setup-page boot now skips save discovery on the first `/api/setup/init` request, marks the menu ready from active-league/team state, and hydrates saves in the background
+  - client-only mode now loads in the browser again because node-only realism profile loading was moved out of the browser runtime path, and switching runtime mode on setup now reloads the selected runtime state
   - user-facing schedule/calendar/ticker/transaction/pick/player displays now resolve team IDs to generated team abbreviations instead of showing legacy NFL IDs
   - roster designation and retirement override panels now use table-driven player selection chips instead of typed raw player IDs
 - Generated presentation work:
@@ -148,15 +149,17 @@ VaultSpark Football GM
   - result: `23 passed, 0 failed`
  - Additional frontend/runtime sanity after the latest guide/profile/default-team pass:
    - `node --check public/app.js`
+   - `node --check public/lib/api/createApiClient.js`
    - `node --check public/setup.js`
    - `node --check src/server.js`
    - `node --check src/app/api/localApiRuntime.js`
+   - `node --check src/runtime/bootstrap.js`
+   - `node --check src/runtime/profileLoader.js`
    - `node --check tests-ui/app.spec.js`
    - `node --test --test-isolation=none test/browser-save-store.test.js test/file-save-store.test.js test/local-api-runtime.test.js`
    - `node --test --test-isolation=none test/local-api-runtime.test.js test/session-actions.test.js`
-   - `node --test --test-isolation=none test/local-api-runtime.test.js`
-   - `npx.cmd playwright test tests-ui/app.spec.js --reporter=line --workers=1`
-   - `npx.cmd playwright test tests-ui/play-mode-smoke.spec.js --reporter=line --workers=1`
+   - `node --test --test-isolation=none test/local-api-runtime.test.js test/bootstrap-realism-profile.test.js`
+   - `npx.cmd playwright test tests-ui/app.spec.js tests-ui/play-mode-smoke.spec.js --reporter=line --workers=1`
 
 ## Realism Status
 - The earlier realism pass remains intact after the runtime refactor work.

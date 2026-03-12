@@ -212,3 +212,32 @@ test("scouting lock persists across save and load", async ({ page }) => {
   await expect(page.locator("#scoutingLockText")).toContainText("Locked");
   await expect(page.locator("#scoutingBoardText")).toContainText(`Board: ${idsToLock.length} / 20`);
 });
+
+test("switching runtime mode reloads setup state", async ({ page }) => {
+  await createLeagueFromSetup(page);
+
+  const slot = `runtime-switch-${Date.now()}`;
+  await page.click('[data-testid="tab-settings"]');
+  await page.fill("#saveSlotInput", slot);
+  await page.click("#saveBtn");
+  await waitGameReady(page);
+
+  await page.click("#backSetupBtn");
+  await expect(page).toHaveURL(/\/$/, { timeout: 20_000 });
+  await waitSetupReady(page);
+  await expect(page.locator("#savesTable")).toContainText(slot, { timeout: 20_000 });
+
+  await page.selectOption("#runtimeModeSelect", "client");
+  await waitSetupReady(page);
+  await expect(page.locator("#runtimeModeSelect")).toHaveValue("client");
+  await expect(page.locator("#pfrPathInput")).toBeDisabled();
+  await expect(page.locator("#profilePathInput")).toBeDisabled();
+  await expect(page.locator("#savesTable")).not.toContainText(slot);
+  await expect(page.locator("#resumeLatestBtn")).toBeDisabled();
+
+  await page.selectOption("#runtimeModeSelect", "server");
+  await waitSetupReady(page);
+  await expect(page.locator("#runtimeModeSelect")).toHaveValue("server");
+  await expect(page.locator("#savesTable")).toContainText(slot, { timeout: 20_000 });
+  await expect(page.locator("#resumeLatestBtn")).toBeEnabled();
+});

@@ -1,4 +1,4 @@
-import { createApiClient, getRuntimeMode, setRuntimeMode } from "./lib/api/createApiClient.js";
+import { createApiClient, getRuntimeMode, setRuntimeMode, warmLocalRuntime } from "./lib/api/createApiClient.js";
 
 const state = {
   currentYear: new Date().getFullYear(),
@@ -11,6 +11,7 @@ const state = {
 };
 
 const api = createApiClient();
+let setupLoadVersion = 0;
 
 const MODE_HELP = {
   drive: "Drive resolves games possession-by-possession. It is faster for long sims and keeps weekly progression moving.",
@@ -171,8 +172,9 @@ function renderSaves() {
   if (latestBtn) latestBtn.disabled = state.saves.length === 0;
 }
 
-async function refreshSaves({ preserveStatus = false } = {}) {
+async function refreshSaves({ preserveStatus = false, loadVersion = setupLoadVersion } = {}) {
   const payload = await api("/api/saves");
+  if (loadVersion !== setupLoadVersion) return;
   state.saves = payload.slots || [];
   state.savesDeferred = false;
   renderSaves();
@@ -217,8 +219,13 @@ function renderBackups() {
 }
 
 async function loadSetup() {
+  const loadVersion = ++setupLoadVersion;
   applyRuntimeModeUi();
+  if (getRuntimeMode() === "client") {
+    warmLocalRuntime().catch(() => {});
+  }
   const init = await api("/api/setup/init?includeSaves=0&includeBackups=0");
+  if (loadVersion !== setupLoadVersion) return;
   state.currentYear = init.currentYear;
   state.saves = init.saves || [];
   state.savesDeferred = init.savesDeferred === true;
@@ -238,7 +245,8 @@ async function loadSetup() {
 
   if (state.savesDeferred) {
     queueMicrotask(() => {
-      refreshSaves({ preserveStatus: true }).catch(() => {
+      refreshSaves({ preserveStatus: true, loadVersion }).catch(() => {
+        if (loadVersion !== setupLoadVersion) return;
         state.savesDeferred = false;
         renderSaves();
       });
@@ -302,8 +310,16 @@ async function deleteBackupSlot() {
 function bindEvents() {
   document.getElementById("runtimeModeSelect")?.addEventListener("change", (event) => {
     const mode = setRuntimeMode(event.target.value);
-    applyRuntimeModeUi();
-    setStatus(mode === "client" ? "Client-only mode enabled" : "Server-backed mode enabled");
+    const statusText = mode === "client" ? "Loading client-only menu..." : "Loading server-backed menu...";
+    setStatus(statusText);
+    if (mode === "client") {
+      warmLocalRuntime().catch(() => {});
+    }
+    loadSetup()
+      .then(() => setStatus("Ready"))
+      .catch((error) => {
+        setStatus(`Error: ${error.message}`);
+      });
   });
   document.getElementById("modeInput")?.addEventListener("change", updateModeHelp);
 

@@ -41,10 +41,10 @@ import { StatBook } from "../stats/statBook.js";
 import {
   applySeasonRealismCalibration,
   buildCareerCalibrationSnapshot,
-  buildPositionCalibrationSnapshot,
-  loadCareerRealismProfile,
-  loadRealismProfile
+  buildPositionCalibrationSnapshot
 } from "../stats/realismCalibrator.js";
+import { PFR_RECENT_WEIGHTED_PROFILE } from "../stats/profiles/pfrRecentWeightedProfile.js";
+import { PFR_CAREER_WEIGHTED_PROFILE } from "../stats/profiles/pfrCareerWeightedProfile.js";
 import { clamp } from "../utils/rng.js";
 import { RNGStreams } from "../utils/rngStreams.js";
 import { createSessionModules } from "./modules/sessionModules.js";
@@ -598,8 +598,8 @@ export class GameSession {
     this.previousDivisionRanks = null;
     this.lastCalibrationReport = null;
     this.lastRealismVerificationReport = null;
-    this.realismProfile = realismProfile || loadRealismProfile();
-    this.careerRealismProfile = careerRealismProfile || loadCareerRealismProfile();
+    this.realismProfile = realismProfile || PFR_RECENT_WEIGHTED_PROFILE;
+    this.careerRealismProfile = careerRealismProfile || PFR_CAREER_WEIGHTED_PROFILE;
 
     this.league = createLeagueBase(startYear, this.rng);
     initializeLeagueRoster({ league: this.league, importedPlayers, rng: this.rng });
@@ -635,8 +635,8 @@ export class GameSession {
     session.modules = createSessionModules(session);
     session.statBook = new StatBook(session.league);
     session.statBook.teamSeasonArchive = snapshot.teamSeasonArchive || [];
-    session.realismProfile = snapshot.realismProfile || loadRealismProfile();
-    session.careerRealismProfile = snapshot.careerRealismProfile || loadCareerRealismProfile();
+    session.realismProfile = snapshot.realismProfile || PFR_RECENT_WEIGHTED_PROFILE;
+    session.careerRealismProfile = snapshot.careerRealismProfile || PFR_CAREER_WEIGHTED_PROFILE;
     session.lastRealismVerificationReport = snapshot.lastRealismVerificationReport || null;
     session.statBook.reindexPlayers();
     ensureLeagueRuntime(session.league);

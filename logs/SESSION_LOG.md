@@ -34,12 +34,14 @@ Completed:
 - Added and passed a Playwright regression covering designation selection plus the retirement-override no-raw-ID shell state
 - Changed setup boot so `/api/setup/init` can skip save discovery, the page becomes ready from active-league/team state first, and `/api/saves` hydrates in the background
 - Added runtime coverage for `includeSaves=0` and revalidated the setup-dependent Playwright specs
+- Moved node-only realism profile loading out of the browser runtime path so client-only mode can import `localApiRuntime` under the dev server again
+- Made setup runtime-mode switching reload active/save state for the selected runtime and added Playwright coverage for switching between server-backed and client-only mode
 
 Open problems:
-- Setup/main-menu initialization still needs measuring after the non-blocking save-load change and may need additional trimming
+- Setup/main-menu initialization still needs measuring after the non-blocking save-load and client-runtime import fixes and may need additional trimming
 - GitHub Settings -> Pages and optional repo variables cannot be verified from repo files alone
 - A full `npm.cmd test` invocation was not rerun in this shell session, so verification here relies on the focused suites that passed
 - Trade, compare, and player-history commissioner tools still expose typed player IDs and need the same UX cleanup pass
 
 Recommended next action:
-- Measure the remaining setup/main-menu latency after this non-blocking save-load pass, then remove the remaining raw-ID commissioner/admin flows outside designation/retirement override
+- Measure the remaining setup/main-menu latency after this client-runtime import fix, then remove the remaining raw-ID commissioner/admin flows outside designation/retirement override

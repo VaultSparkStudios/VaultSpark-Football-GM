@@ -18,13 +18,15 @@ What was completed:
 - Replaced raw typed player-ID inputs in the designation and retirement-override panels with table-driven selection chips and disabled action buttons until a player is selected
 - Added a Playwright regression for the designation selection flow and the no-raw-ID retirement override shell state
 - Made setup boot non-blocking for save discovery by allowing `/api/setup/init` to skip saves, marking the page ready from active-league/team state, and hydrating `/api/saves` in the background
+- Fixed the client-only runtime import boundary by moving node-only realism profile loading out of the browser path, and made runtime-mode switching reload setup state for the selected runtime
+- Added regression coverage for switching between server-backed and client-only mode on the setup menu
 
 What is mid-flight:
 - The unrelated realism/runtime work is still parked in a local stash and has not been reincorporated
-- The next UX/runtime batch still needs to tackle the remaining raw-ID commissioner/admin flows outside designation/retirement override and any remaining setup/main-menu latency after the non-blocking save-load pass
+- The next UX/runtime batch still needs to tackle the remaining raw-ID commissioner/admin flows outside designation/retirement override and any remaining setup/main-menu latency after the non-blocking save-load and client-runtime import fixes
 
 What to do next:
-1. Measure and trim any remaining setup/main-menu latency, especially residual active-session/runtime-mode startup overhead
+1. Measure and trim any remaining setup/main-menu latency, especially any residual runtime-mode startup overhead after the client-runtime import fix
 2. Remove the remaining raw-ID dependence from the remaining commissioner/admin flows such as trade, compare, and player-history lookups
 3. Reconcile the separate Studio repo docs/templates to match Studio `AGENTS.md` once that worktree is safe to edit
 
