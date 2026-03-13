@@ -59,6 +59,10 @@ Build status:
   - pass plays choose route families such as `quick`, `breaker`, `seam`, `vertical`, and `space` from player strengths, weekly plan, and coaching tendencies
   - defenses present lightweight man/zone plus single-high/split-safety shells derived from weekly plan, scheme aggression, and blitz tendency
   - play logs now record route family, depth bucket, and defensive shell metadata so future tuning can inspect what the simulator actually called
+- The realism-profile refresh path is less brittle now:
+  - added `src/data/scripts/buildOfficialNfl2025Baseline.js` plus `npm run build:official-nfl-baseline` to scrape official NFL 2025 player tables and player `stats/` pages into a reviewable JSON baseline
+  - the starter-qualified stats regression now reads its targets from `PFR_RECENT_WEIGHTED_PROFILE` instead of duplicating hard-coded benchmark numbers
+  - the current official NFL scrape is useful for spot checks and K/P/QB coverage, but the public server-rendered leaderboards stop after a limited visible slice, so it is not yet trustworthy as a full-league replacement profile for WR/TE/front-seven coverage
 - Challenge enforcement now blocks user free-agent actions in `no-free-agency` mode and blocks trades that would deliver top-10 picks to the controlled team in `no-top-10-picks` mode
 - That enforcement now reaches the remaining obvious user acquisition paths too:
   - waiver claims are blocked in `no-free-agency`
@@ -103,7 +107,7 @@ Build status:
 
 Current priorities:
 1. Use the new setup diagnostics to confirm whether any remaining setup/main-menu latency still needs another trim after the lazy browser bootstrap
-2. Decide whether the refreshed NFL/PFF spot checks justify a regenerated realism profile or more explicit route-role/personnel weighting now that route family plus coverage shell are in the live sim
+2. Finish the refreshed realism-profile regeneration with a full-league bulk source now that the official NFL helper has confirmed the public leaderboard pages are too shallow for WR/TE/front-seven coverage
 3. Verify the next GitHub push clears both `CI` and `Deploy Backend Runtime` now that the test regression and GHCR tag casing are fixed
 4. Feed the new world-state deeper into any remaining owner expectation loops and transaction AI edges instead of stopping at the current trade/FA hooks
 5. Extend the new benchmark/qualification hint pattern anywhere else the UI compares all-player data to starter-qualified or team-level baselines
@@ -113,3 +117,4 @@ Known issues:
 - Challenge restrictions are much more mechanical now, but there may still be edge-case user acquisition paths worth auditing later
 - The unrelated realism/runtime work was parked in a local stash and is not yet reconciled back into the branch
 - Full `npm.cmd test` still exceeds the local command timeout window in this shell, so GitHub Actions remains the authoritative full-suite verification path for the depth-rating passes
+- Official NFL player leaderboard pages are useful for spot checks but appear to expose only a limited server-rendered slice, so a full 2025 starter-qualified profile rebuild still needs a broader bulk source than the visible NFL.com tables

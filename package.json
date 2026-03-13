@@ -12,6 +12,7 @@
     "smoke:pages": "node scripts/smoke-pages.mjs",
     "sim:100": "node src/index.js --years 100 --seed 2026 --export",
     "build:realism-profile": "node src/data/scripts/buildRealismProfile.js",
+    "build:official-nfl-baseline": "node src/data/scripts/buildOfficialNfl2025Baseline.js",
     "etl:pfr": "node src/data/scripts/pfrEtl.js",
     "verify:realism": "node src/data/scripts/verifyRealism.js --seasons 12",
     "test": "node --test --test-isolation=none",
