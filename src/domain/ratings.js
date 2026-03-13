@@ -112,9 +112,14 @@ const POSITION_FORMULAS = {
 export function calculatePositionOverall(position, ratings) {
   const formula = POSITION_FORMULAS[position];
   if (!formula) return 60;
-  const score = Object.entries(formula).reduce((total, [key, weight]) => {
+  const weightTotal = Math.max(
+    0.0001,
+    Object.values(formula).reduce((sum, weight) => sum + Number(weight || 0), 0)
+  );
+  const score =
+    Object.entries(formula).reduce((total, [key, weight]) => {
     return total + (ratings[key] ?? 60) * weight;
-  }, 0);
+    }, 0) / weightTotal;
   return Math.round(clamp(score, 40, 99));
 }
 
