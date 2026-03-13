@@ -54,6 +54,7 @@ Build status:
   - generated/imported LB and DB ratings derive `coverageShort`, `coverageMedium`, and `coverageDeep` from the existing coverage/man/zone/play-recognition base
   - DB/LB overall and scheme-fit logic now account for those depth buckets instead of only a single blended coverage number
   - the game simulator now applies bucket-specific defensive coverage pressure and chooses pass-breakup/interception defenders using the relevant depth bucket
+- The default career realism profile now uses modern 17-game-era receiving touchdown totals for RB and TE careers, aligning the career guardrails with the existing season baseline expectations
 - Challenge enforcement now blocks user free-agent actions in `no-free-agency` mode and blocks trades that would deliver top-10 picks to the controlled team in `no-top-10-picks` mode
 - That enforcement now reaches the remaining obvious user acquisition paths too:
   - waiver claims are blocked in `no-free-agency`
@@ -73,6 +74,7 @@ Build status:
   - `node --test --test-isolation=none test/stats-regression.test.js`
   - `node --test --test-isolation=none test/ratings-regression.test.js`
   - `node --test --test-isolation=none test/new-systems.test.js`
+  - `node --test --test-isolation=none test/realism-career-regression.test.js`
   - `npm.cmd run build:pages`
   - `node --check public/app.js`
   - `node --check public/lib/api/createApiClient.js`

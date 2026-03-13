@@ -41,7 +41,7 @@ export const PFR_CAREER_WEIGHTED_PROFILE = {
         "careerStats.receiving.targets": 220,
         "careerStats.receiving.rec": 152,
         "careerStats.receiving.yards": 1260,
-        "careerStats.receiving.td": 8
+        "careerStats.receiving.td": 12
       }
     },
     WR: {
@@ -71,7 +71,7 @@ export const PFR_CAREER_WEIGHTED_PROFILE = {
         "careerStats.receiving.targets": 456,
         "careerStats.receiving.rec": 294,
         "careerStats.receiving.yards": 3360,
-        "careerStats.receiving.td": 24
+        "careerStats.receiving.td": 32
       }
     },
     OL: {

@@ -8,6 +8,7 @@ What was completed:
   - LB/DB overall, development focus, scheme-fit, and team-coverage evaluation now read those ratings instead of only one blended coverage number
   - live pass defense now applies bucket-specific coverage pressure and uses depth-aware defender selection for breakups and interceptions
 - Added a regression that verifies both generated and imported defenders carry the new depth-based coverage ratings
+- Updated the default career realism profile for modern RB/TE receiving touchdowns so career verification stays aligned with the existing 17-game-era season baselines
 - Added a first pass of depth-based QB passing ratings and live pass resolution:
   - generated/imported QBs now carry `throwAccuracyShort`, `throwAccuracyMedium`, and `throwAccuracyDeep`
   - QB overall, development focus, scheme-fit, and setup-penalty paths now account for those ratings
@@ -89,6 +90,7 @@ What was completed:
   - `node --test --test-isolation=none test/stats-regression.test.js`
   - `node --test --test-isolation=none test/ratings-regression.test.js`
   - `node --test --test-isolation=none test/new-systems.test.js`
+  - `node --test --test-isolation=none test/realism-career-regression.test.js`
   - `npm.cmd run build:pages`
   - `node --check src/stats/realismCalibrator.js`
   - `node --check test/stats-regression.test.js`
