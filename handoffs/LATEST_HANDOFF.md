@@ -3,6 +3,20 @@
 Last updated: 2026-03-13
 
 What was completed:
+- Refreshed the frontend brand/UI presentation:
+  - added a VaultSpark Studios kicker to the setup and in-game top bars so the product reads as part of the studio identity instead of only a utilitarian shell
+  - upgraded the shared visual system in `public/styles.css` with a richer stadium-night palette, stronger panel depth, cleaner tables/forms, and more deliberate modal/navigation styling
+- Reworked the player profile surface into a dossier-style hero:
+  - the profile summary area now renders as a structured hero card instead of a plain text stack
+  - added deterministic generated SVG portraits for every player, keyed from the existing player profile face seed when available
+  - surfaced cleaner badges/meta cards for archetype, development, body/profile context, and status so the modal feels like a scouting profile instead of a debug readout
+- Fixed the box score scrolling problem:
+  - the box score modal now uses internal subtabs for `Player Stats`, `Summary`, and `Play By Play`
+  - player stats are the default view, so users no longer need to scroll past the entire drive log just to inspect stat lines
+- Revalidated the refreshed frontend with:
+  - `node --check public/app.js`
+  - `npm.cmd test`
+  - `npm.cmd run build:pages`
 - Updated GitHub workflow action versions for the Node 24 migration warning:
   - bumped `actions/checkout` from `v4` to `v5` in `ci.yml`, `deploy-backend.yml`, and `deploy-pages.yml`
   - bumped `actions/setup-node` from `v4` to `v5` in `ci.yml` and `deploy-pages.yml`
@@ -145,17 +159,17 @@ What was completed:
   - `npm.cmd run smoke:pages`
 
 What is mid-flight:
+- The branding/player-profile/box-score refresh is ready locally but still needs the commit/push/GitHub verification pass
 - The unrelated realism/runtime work is still parked in a local stash and has not been reincorporated
 - Challenge restrictions are much more mechanical now, though edge-case acquisition paths may still be worth auditing later
 - The broader 2025 baseline path currently lives as a generated output artifact plus smoothed live constants; it is not yet promoted to a dedicated checked-in builder script
-- The workflow bump still needs one fresh GitHub run checked for warning removal; no local app/runtime behavior changed here
 
 What to do next:
-1. Push the workflow action-version bump and confirm the next GitHub run no longer shows the Node 20 JavaScript-action deprecation warning
-2. Decide whether to promote the generated StatMuse baseline flow into a checked-in repo script instead of keeping it as an output artifact plus smoothed constants
-3. Use the new setup diagnostics to decide whether any remaining setup/main-menu latency still needs another trim after the lazy browser bootstrap
-4. Feed the new world-state deeper into any remaining owner expectation loops and transaction AI edges
-5. Extend the new benchmark/qualification hint pattern to any other views that still imply apples-to-apples NFL averages without saying so
+1. Commit/push the branding/player-profile/box-score UI refresh and confirm the next GitHub run stays green
+2. Review the live deploy on desktop/mobile to catch any overflow or spacing issues in the new player hero and box score tab layout
+3. Decide whether to promote the generated StatMuse baseline flow into a checked-in repo script instead of keeping it as an output artifact plus smoothed constants
+4. Use the new setup diagnostics to decide whether any remaining setup/main-menu latency still needs another trim after the lazy browser bootstrap
+5. Feed the new world-state deeper into any remaining owner expectation loops and transaction AI edges
 
 Important constraints:
 - The parked stash is named `park unrelated realism-runtime work after depth-chart commit`; do not lose it if that work is still needed

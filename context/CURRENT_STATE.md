@@ -79,6 +79,18 @@ Build status:
   - bumped `actions/checkout` from `v4` to `v5` in `ci.yml`, `deploy-backend.yml`, and `deploy-pages.yml`
   - bumped `actions/setup-node` from `v4` to `v5` in `ci.yml` and `deploy-pages.yml`
   - this is intended to clear GitHub's deprecation warning about Node 20-based JavaScript actions without changing the app runtime itself
+- The frontend shell now has a stronger brand and clearer information hierarchy:
+  - setup/game top bars now carry a VaultSpark Studios kicker instead of only the game title
+  - the visual system now leans into a richer stadium-night palette with stronger panel depth, typography, and table/button states
+  - navigation, cards, modals, and forms now read more like a cohesive product surface instead of a mostly utilitarian dark theme
+- Player profile presentation is now much more deliberate:
+  - the player modal summary is now a dossier-style hero panel instead of a plain text block
+  - each player gets a deterministic generated portrait from local SVG assembly keyed from the existing player profile seed
+  - the hero surface now highlights overview badges, archetype/development context, and a cleaner profile summary before the stats tables
+- Box score UX no longer buries player stats below play-by-play:
+  - box scores now open with `Player Stats` as the default subtab
+  - `Summary` and `Play By Play` live in separate tab panels inside the same modal
+  - users can inspect player stat lines immediately without scrolling through the full drive log first
 - Challenge enforcement now blocks user free-agent actions in `no-free-agency` mode and blocks trades that would deliver top-10 picks to the controlled team in `no-top-10-picks` mode
 - That enforcement now reaches the remaining obvious user acquisition paths too:
   - waiver claims are blocked in `no-free-agency`
@@ -102,6 +114,8 @@ Build status:
   - `node --test --test-isolation=none test/pass-structure-regression.test.js`
   - `npm.cmd run build:pages`
   - `node --check public/app.js`
+  - `npm.cmd test`
+  - `npm.cmd run build:pages`
   - `node --check public/lib/api/createApiClient.js`
   - `node --check public/setup.js`
   - `node --check src/config/leagueSetup.js`
@@ -117,17 +131,14 @@ Build status:
   - `node --test --test-isolation=none test/world-state-next-step.test.js test/feature-pack-v1.test.js test/new-systems.test.js test/session-actions.test.js test/local-api-runtime.test.js test/strategy-contract-scouting.test.js test/stats-regression.test.js`
   - `node --test --test-isolation=none test/realism-career-regression.test.js`
   - `node --test --test-isolation=none test/stats-regression.test.js test/realism-career-regression.test.js`
-  - `npm.cmd test`
-  - `npm.cmd run build:pages`
   - `npm.cmd run smoke:pages`
 
 Current priorities:
-1. Verify the next GitHub push clears `CI`, `Deploy Backend Runtime`, and `Deploy Pages` after the AV/snap-share/baseline refresh work
-2. Use the new setup diagnostics to confirm whether any remaining setup/main-menu latency still needs another trim after the lazy browser bootstrap
-3. Feed the new world-state deeper into any remaining owner expectation loops and transaction AI edges instead of stopping at the current trade/FA hooks
-4. Extend the new benchmark/qualification hint pattern anywhere else the UI compares all-player data to starter-qualified or team-level baselines
+1. Push the branding/player-profile/box-score UI refresh and verify `CI`, `Deploy Backend Runtime`, and `Deploy Pages`
+2. Review the refreshed player profile and box score flows on mobile after the live deployment to catch any spacing or overflow issues
+3. Use the new setup diagnostics to confirm whether any remaining setup/main-menu latency still needs another trim after the lazy browser bootstrap
+4. Feed the new world-state deeper into any remaining owner expectation loops and transaction AI edges instead of stopping at the current trade/FA hooks
 5. Decide whether the generated StatMuse 2025 baseline should become a first-class repo script instead of only an output artifact plus smoothed live constants
-6. Confirm the next GitHub Actions run no longer emits the Node 20 JavaScript-action deprecation warning after the workflow action-version bump
 
 Known issues:
 - The Pages artifact remains client-only unless `GAME_SERVICE_ORIGIN` or `API_DOMAIN` is configured and the separate backend/runtime rollout is live

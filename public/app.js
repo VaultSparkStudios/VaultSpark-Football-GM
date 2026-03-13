@@ -206,9 +206,9 @@ const STATS_BENCHMARK_HINTS = {
       "Receiving NFL averages depend on role. Select WR, TE, or RB for a position-specific starter-qualified benchmark."
   },
   defense: {
-    DL: "Starter-qualified DL baseline: top four linemen per team average about 45 tackles, 6.2 sacks, 3.1 pass breakups, and 0.3 INT, or about 2.6 tackles/g and 0.36 sacks/g.",
-    LB: "Starter-qualified LB baseline: top three linebackers per team average about 91 tackles, 3 sacks, 5 pass breakups, and 1 INT, or about 5.4 tackles/g.",
-    DB: "Starter-qualified DB baseline: top four defensive backs per team average about 68 tackles, 1.1 sacks, 10.2 pass breakups, and 2.1 INT, or about 4.0 tackles/g and 0.6 pass breakups/g.",
+    DL: "Starter-qualified DL baseline: top four linemen per team average about 30 tackles, 5.1 sacks, 1.9 pass breakups, and 0.1 INT, or about 1.8 tackles/g and 0.3 sacks/g.",
+    LB: "Starter-qualified LB baseline: top three linebackers per team average about 64 tackles, 2.8 sacks, 4 pass breakups, and 0.8 INT, or about 3.8 tackles/g.",
+    DB: "Starter-qualified DB baseline: top four defensive backs per team average about 60 tackles, 0.8 sacks, 8.9 pass breakups, and 1.9 INT, or about 3.5 tackles/g and 0.5 pass breakups/g.",
     default:
       "Defensive NFL averages vary by room. Select DL, LB, or DB to compare against a starter-qualified baseline."
   },
@@ -221,7 +221,7 @@ const STATS_BENCHMARK_HINTS = {
     default: "Kicking baselines are based on one primary kicker per team over the regular season."
   },
   punting: {
-    P: "Starter-qualified P baseline: regular-season P1 sample averages about 64 punts, 3,005 yds, and 24 inside-the-20 punts, or about 3.8 punts/g.",
+    P: "Starter-qualified P baseline: regular-season P1 sample averages about 60 punts, 2,853 yds, and 23 inside-the-20 punts, or about 3.5 punts/g.",
     default: "Punting baselines are based on one primary punter per team over the regular season."
   },
   snaps: {
@@ -248,6 +248,141 @@ function escapeHtml(value) {
 function fmtMoney(value) {
   if (!Number.isFinite(value)) return "$0";
   return `$${(value / 1_000_000).toFixed(1)}M`;
+}
+
+function hashStringLocal(value) {
+  let hash = 2166136261;
+  const text = String(value || "");
+  for (let i = 0; i < text.length; i += 1) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function portraitChoice(seed, items, offset = 0) {
+  const index = Math.abs((seed + offset) % items.length);
+  return items[index];
+}
+
+function buildPlayerPortraitSvg(player) {
+  const seed = hashStringLocal(player?.profile?.faceSeed || `${player?.id || ""}-${player?.name || ""}`);
+  const skin = portraitChoice(seed, ["#f2d6bf", "#e6c1a1", "#d6a57f", "#b97d58", "#8c5a3d"]);
+  const hair = portraitChoice(seed, ["#2a1e1a", "#3c2d25", "#5d4938", "#1f2528", "#5b5d61"], 7);
+  const eyes = portraitChoice(seed, ["#2d3d4e", "#3f4b2f", "#5b422d", "#2b2a30"], 11);
+  const jersey = portraitChoice(seed, ["#375e56", "#6d4b28", "#4d5b77", "#6b3535", "#34516f"], 17);
+  const jerseyStripe = portraitChoice(seed, ["#f4c97a", "#7bc4d7", "#d8ede8", "#f5efe0"], 23);
+  const mouth = portraitChoice(seed, ["M85 154 Q110 164 135 154", "M87 156 Q110 160 133 156", "M88 153 Q110 151 132 153"], 29);
+  const browTilt = (seed % 5) - 2;
+  const jawWidth = 46 + (seed % 10);
+  const faceHeight = 58 + ((seed >> 3) % 8);
+  const eyeY = 106 + ((seed >> 5) % 6);
+  const noseY = 123 + ((seed >> 7) % 5);
+  const hairVariant = seed % 4;
+  const facialHairVariant = (seed >> 4) % 5;
+  const portraitId = `portrait-${seed}`;
+  const hairPaths = [
+    `<path d="M58 95 C66 48, 154 44, 162 96 C149 76, 132 68, 110 66 C88 68, 70 76, 58 95 Z" fill="${hair}" />`,
+    `<path d="M52 101 C62 42, 158 40, 170 103 C146 84, 132 77, 111 75 C90 77, 73 86, 52 101 Z" fill="${hair}" />`,
+    `<path d="M58 97 C70 54, 151 48, 164 98 C155 82, 143 71, 128 67 C102 59, 79 70, 58 97 Z" fill="${hair}" />`,
+    `<path d="M50 101 C62 58, 160 49, 169 105 C156 89, 136 76, 110 74 C84 76, 66 87, 50 101 Z" fill="${hair}" />`
+  ];
+  const facialHair = [
+    "",
+    `<path d="M86 160 Q110 168 134 160" fill="none" stroke="${hair}" stroke-width="5" stroke-linecap="round" />`,
+    `<path d="M85 164 Q110 186 135 164" fill="${hair}" opacity="0.92" />`,
+    `<path d="M89 149 Q110 156 131 149" fill="none" stroke="${hair}" stroke-width="4" stroke-linecap="round" />`,
+    `<path d="M82 161 Q110 173 138 161" fill="none" stroke="${hair}" stroke-width="6" stroke-linecap="round" opacity="0.84" />`
+  ];
+
+  return `
+    <svg class="player-portrait-svg" viewBox="0 0 220 260" aria-label="${escapeHtml(player?.name || "Player")} portrait">
+      <defs>
+        <linearGradient id="${portraitId}-bg" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#24343b" />
+          <stop offset="100%" stop-color="#10181c" />
+        </linearGradient>
+        <linearGradient id="${portraitId}-skin" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="${skin}" />
+          <stop offset="100%" stop-color="${skin}dd" />
+        </linearGradient>
+      </defs>
+      <rect x="0" y="0" width="220" height="260" rx="28" fill="url(#${portraitId}-bg)" />
+      <circle cx="46" cy="38" r="26" fill="${jersey}" opacity="0.1" />
+      <circle cx="186" cy="52" r="18" fill="${jerseyStripe}" opacity="0.08" />
+      <path d="M36 252 Q62 198 110 194 Q158 198 184 252 Z" fill="${jersey}" />
+      <path d="M62 252 Q92 214 110 214 Q128 214 158 252" fill="none" stroke="${jerseyStripe}" stroke-width="8" opacity="0.9" />
+      <rect x="94" y="154" width="32" height="34" rx="12" fill="${skin}" opacity="0.95" />
+      <ellipse cx="110" cy="112" rx="${jawWidth}" ry="${faceHeight}" fill="url(#${portraitId}-skin)" />
+      <ellipse cx="61" cy="118" rx="8" ry="14" fill="${skin}" opacity="0.92" />
+      <ellipse cx="159" cy="118" rx="8" ry="14" fill="${skin}" opacity="0.92" />
+      ${hairPaths[hairVariant]}
+      <path d="M69 ${92 + browTilt} Q86 ${84 + browTilt} 98 ${91 + browTilt}" fill="none" stroke="${hair}" stroke-width="4" stroke-linecap="round" />
+      <path d="M122 ${91 - browTilt} Q135 ${84 - browTilt} 151 ${92 - browTilt}" fill="none" stroke="${hair}" stroke-width="4" stroke-linecap="round" />
+      <ellipse cx="86" cy="${eyeY}" rx="12" ry="8" fill="#f4f1eb" />
+      <ellipse cx="134" cy="${eyeY}" rx="12" ry="8" fill="#f4f1eb" />
+      <circle cx="86" cy="${eyeY}" r="4" fill="${eyes}" />
+      <circle cx="134" cy="${eyeY}" r="4" fill="${eyes}" />
+      <circle cx="84" cy="${eyeY - 2}" r="1.4" fill="#ffffff" opacity="0.85" />
+      <circle cx="132" cy="${eyeY - 2}" r="1.4" fill="#ffffff" opacity="0.85" />
+      <path d="M110 ${noseY} Q101 ${noseY + 17} 110 ${noseY + 23} Q119 ${noseY + 17} 110 ${noseY}" fill="none" stroke="#8c5e45" stroke-width="3" stroke-linecap="round" />
+      <path d="${mouth}" fill="none" stroke="#7d453f" stroke-width="3" stroke-linecap="round" />
+      ${facialHair[facialHairVariant]}
+    </svg>
+  `;
+}
+
+function renderPlayerProfileHero(profile) {
+  const player = profile.player || {};
+  const outlook = profile.developmentOutlook || {};
+  const careerSummary = buildProfileCareerRow(profile)?.[0] || {};
+  const awardsCount = (profile.awardsHistory || []).length;
+  const latestSeason = (profile.timeline || []).slice().sort((a, b) => (b.year || 0) - (a.year || 0))[0] || null;
+  const latestAv = latestSeason ? approximateValue(player.position, latestSeason.stats || {}) : 0;
+  const badges = [
+    `${teamCode(player.teamId)} ${player.position}`,
+    `OVR ${player.overall ?? "-"}`,
+    `Potential ${player.potential ?? "-"}`,
+    `${player.developmentTrait || "Steady"} Dev`,
+    `${player.rosterSlot || "active"} Slot`
+  ];
+
+  return `
+    <div class="player-hero">
+      <div class="player-portrait-card">${buildPlayerPortraitSvg(player)}</div>
+      <div class="player-overview">
+        <div class="player-nameplate">
+          <div class="brand-kicker">Player Dossier</div>
+          <strong>${escapeHtml(player.name || "Player")}</strong>
+          <div>${escapeHtml(teamDisplayFromId(player.teamId) || player.teamName || player.teamId || "-")} | ${escapeHtml(player.position || "-")} | Experience ${escapeHtml(player.experience || 0)}</div>
+        </div>
+        <div class="profile-badge-row">
+          ${badges.map((badge) => `<span class="profile-badge">${escapeHtml(badge)}</span>`).join("")}
+        </div>
+        <div class="player-meta-grid">
+          <div class="player-meta-card">
+            <strong>Frame</strong>
+            <div>${escapeHtml(formatHeight(player.heightInches))} / ${escapeHtml(player.weightLbs || "-")} lbs</div>
+            <div class="small">Scheme fit ${escapeHtml(outlook.fitLabel || "-")} (${escapeHtml(outlook.fit ?? "-")})</div>
+          </div>
+          <div class="player-meta-card">
+            <strong>Development</strong>
+            <div>${escapeHtml(outlook.trajectory || "steady")}</div>
+            <div class="small">Weekly focus ${escapeHtml(outlook.weeklyPlan || "-")}</div>
+          </div>
+          <div class="player-meta-card">
+            <strong>Career Resume</strong>
+            <div>Seasons ${escapeHtml(profile.timeline?.length || 0)} | Awards ${escapeHtml(awardsCount)}</div>
+            <div class="small">Career AV ${escapeHtml(careerSummary.av ?? 0)} | Latest AV ${escapeHtml(latestAv)}</div>
+          </div>
+        </div>
+        <div class="player-note">
+          Morale ${escapeHtml(player.morale || "-")} | Motivation ${escapeHtml(player.motivation || "-")} | Owner pressure ${escapeHtml(outlook.ownerPressure ?? "-")} | Legacy score ${escapeHtml(outlook.legacyScore ?? "-")}<br />
+          Focus ratings: ${escapeHtml((outlook.focusRatings || []).map((rating) => toTitleCaseKey(rating)).join(", ") || "-")}
+        </div>
+      </div>
+    </div>
+  `;
 }
 
 function setStatus(text) {
@@ -1223,6 +1358,15 @@ function renderBoxScoreTicker() {
     .join("");
 }
 
+function setBoxScoreTab(panelId = "boxScoreStatsPanel") {
+  document.querySelectorAll("[data-boxscore-tab]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.boxscoreTab === panelId);
+  });
+  document.querySelectorAll("#boxScoreModal .subtab-panel").forEach((panel) => {
+    panel.classList.toggle("active", panel.id === panelId);
+  });
+}
+
 async function loadBoxScore(gameId) {
   state.activeBoxScoreId = gameId;
   const payload = await api(`/api/boxscore?gameId=${encodeURIComponent(gameId)}`);
@@ -1288,6 +1432,7 @@ async function loadBoxScore(gameId) {
   };
   renderSide("boxScoreAway", boxScore.playerStats?.away);
   renderSide("boxScoreHome", boxScore.playerStats?.home);
+  setBoxScoreTab("boxScoreStatsPanel");
   document.getElementById("boxScoreModal").classList.remove("hidden");
 }
 
@@ -2759,20 +2904,12 @@ async function loadPlayerModal(playerId) {
   );
   const profile = payload.profile;
   const player = profile.player;
-  const outlook = profile.developmentOutlook || {};
   document.getElementById("playerSeasonTypeFilter").value = profile.seasonType || seasonType;
 
   document.getElementById("playerModalTitle").textContent = `${player.name} (${player.position})`;
   document.getElementById("playerModalMeta").textContent =
-    `${teamCode(player.teamId)} | OVR ${player.overall} | Age ${player.age} | ${formatHeight(player.heightInches)} ${player.weightLbs || "-"} lbs | Dev ${player.developmentTrait}`;
-  document.getElementById("playerProfileSummary").innerHTML = [
-    `<div><strong>${escapeHtml(player.name)}</strong></div>`,
-    `<div>Team: ${escapeHtml(teamDisplayFromId(player.teamId) || player.teamName || player.teamId)} | Position: ${escapeHtml(player.position)} | Experience: ${escapeHtml(player.experience || 0)}</div>`,
-    `<div>Height / Weight: ${escapeHtml(formatHeight(player.heightInches))} / ${escapeHtml(player.weightLbs || "-")} lbs | Potential: ${escapeHtml(player.potential || "-")} | Morale: ${escapeHtml(player.morale || "-")} | Motivation: ${escapeHtml(player.motivation || "-")}</div>`,
-    `<div>Development outlook: ${escapeHtml(outlook.trajectory || "steady")} | Scheme fit: ${escapeHtml(outlook.fitLabel || "-")} (${escapeHtml(outlook.fit ?? "-")}) | Culture: ${escapeHtml(outlook.culture || "-")} | Weekly focus: ${escapeHtml(outlook.weeklyPlan || "-")}</div>`,
-    `<div>Focus ratings: ${escapeHtml((outlook.focusRatings || []).map((rating) => toTitleCaseKey(rating)).join(", ") || "-")} | Owner pressure: ${escapeHtml(outlook.ownerPressure ?? "-")} | Legacy score: ${escapeHtml(outlook.legacyScore ?? "-")}</div>`,
-    `<div>Physical frame matters to the sim through positional body ranges, while ratings drive role quality, efficiency, usage, and development outcomes.</div>`
-  ].join("");
+    `${teamCode(player.teamId)} | OVR ${player.overall} | Age ${player.age} | ${formatHeight(player.heightInches)} ${player.weightLbs || "-"} lbs | Dev ${player.developmentTrait} | Injury ${player.injury?.type || "Healthy"}`;
+  document.getElementById("playerProfileSummary").innerHTML = renderPlayerProfileHero(profile);
 
   const ratingRows = Object.entries(player.ratings || {})
     .sort((a, b) => a[0].localeCompare(b[0]))
@@ -4561,6 +4698,11 @@ function bindEvents() {
     const playerButton = event.target.closest("button[data-player-id]");
     if (playerButton) {
       runAction(() => loadPlayerModal(playerButton.dataset.playerId), "Loading player...");
+      return;
+    }
+    const boxScoreTabButton = event.target.closest("button[data-boxscore-tab]");
+    if (boxScoreTabButton) {
+      setBoxScoreTab(boxScoreTabButton.dataset.boxscoreTab);
       return;
     }
     const modal = document.getElementById("playerModal");

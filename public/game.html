@@ -13,6 +13,7 @@
     <div class="bg-layer"></div>
     <header class="game-topbar">
       <div class="topbar-brand">
+        <div class="brand-kicker">VaultSpark Studios Franchise Desk</div>
         <h1>VaultSpark Football GM</h1>
         <p id="topMetaText" class="small">Loading...</p>
       </div>
@@ -735,7 +736,7 @@
     </footer>
 
     <div id="playerModal" data-testid="player-modal" class="modal hidden">
-      <div class="modal-card">
+      <div class="modal-card player-modal-card">
         <div class="row compact">
           <h2 id="playerModalTitle">Player</h2>
           <button id="closePlayerModalBtn" data-testid="close-player-modal-btn" class="warn">Close</button>
@@ -750,7 +751,7 @@
             </select>
           </label>
         </div>
-        <div class="panel">
+        <div class="panel profile-hero-panel">
           <div id="playerProfileSummary" class="stack"></div>
         </div>
         <div class="split">
@@ -783,7 +784,7 @@
     </div>
 
     <div id="boxScoreModal" class="modal hidden">
-      <div class="modal-card">
+      <div class="modal-card boxscore-modal-card">
         <div class="row" style="justify-content: space-between">
           <div>
             <h2 id="boxScoreModalTitle">Box Score</h2>
@@ -791,36 +792,50 @@
           </div>
           <button id="closeBoxScoreModalBtn" class="warn">Close</button>
         </div>
-        <div class="panel">
-          <h3>Team Stats</h3>
-          <div class="table-wrap"><table id="boxScoreTeamStatsTable"></table></div>
+        <div class="subtab-bar boxscore-subtabs">
+          <button class="subtab-btn active" data-boxscore-tab="boxScoreStatsPanel">Player Stats</button>
+          <button class="subtab-btn" data-boxscore-tab="boxScoreSummaryPanel">Summary</button>
+          <button class="subtab-btn" data-boxscore-tab="boxScorePlayPanel">Play By Play</button>
         </div>
-        <div class="panel">
-          <h3>Scoring Summary</h3>
-          <div class="table-wrap"><table id="boxScoreScoringTable"></table></div>
-        </div>
-        <div class="panel">
-          <h3>Play By Play</h3>
-          <div class="table-wrap"><table id="boxScorePlayTable"></table></div>
-        </div>
-        <div class="panel split">
-          <div>
-            <h3 id="boxScoreAwayTitle">Away Player Stats</h3>
-            <div class="table-wrap"><table id="boxScoreAwayPassingTable"></table></div>
-            <div class="table-wrap"><table id="boxScoreAwayRushingTable"></table></div>
-            <div class="table-wrap"><table id="boxScoreAwayReceivingTable"></table></div>
-            <div class="table-wrap"><table id="boxScoreAwayDefenseTable"></table></div>
-            <div class="table-wrap"><table id="boxScoreAwayKickingTable"></table></div>
+
+        <section id="boxScoreStatsPanel" class="subtab-panel active">
+          <div class="panel split">
+            <div>
+              <h3 id="boxScoreAwayTitle">Away Player Stats</h3>
+              <div class="table-wrap"><table id="boxScoreAwayPassingTable"></table></div>
+              <div class="table-wrap"><table id="boxScoreAwayRushingTable"></table></div>
+              <div class="table-wrap"><table id="boxScoreAwayReceivingTable"></table></div>
+              <div class="table-wrap"><table id="boxScoreAwayDefenseTable"></table></div>
+              <div class="table-wrap"><table id="boxScoreAwayKickingTable"></table></div>
+            </div>
+            <div>
+              <h3 id="boxScoreHomeTitle">Home Player Stats</h3>
+              <div class="table-wrap"><table id="boxScoreHomePassingTable"></table></div>
+              <div class="table-wrap"><table id="boxScoreHomeRushingTable"></table></div>
+              <div class="table-wrap"><table id="boxScoreHomeReceivingTable"></table></div>
+              <div class="table-wrap"><table id="boxScoreHomeDefenseTable"></table></div>
+              <div class="table-wrap"><table id="boxScoreHomeKickingTable"></table></div>
+            </div>
           </div>
-          <div>
-            <h3 id="boxScoreHomeTitle">Home Player Stats</h3>
-            <div class="table-wrap"><table id="boxScoreHomePassingTable"></table></div>
-            <div class="table-wrap"><table id="boxScoreHomeRushingTable"></table></div>
-            <div class="table-wrap"><table id="boxScoreHomeReceivingTable"></table></div>
-            <div class="table-wrap"><table id="boxScoreHomeDefenseTable"></table></div>
-            <div class="table-wrap"><table id="boxScoreHomeKickingTable"></table></div>
+        </section>
+
+        <section id="boxScoreSummaryPanel" class="subtab-panel">
+          <div class="panel">
+            <h3>Team Stats</h3>
+            <div class="table-wrap"><table id="boxScoreTeamStatsTable"></table></div>
           </div>
-        </div>
+          <div class="panel">
+            <h3>Scoring Summary</h3>
+            <div class="table-wrap"><table id="boxScoreScoringTable"></table></div>
+          </div>
+        </section>
+
+        <section id="boxScorePlayPanel" class="subtab-panel">
+          <div class="panel">
+            <h3>Play By Play</h3>
+            <div class="table-wrap"><table id="boxScorePlayTable"></table></div>
+          </div>
+        </section>
       </div>
     </div>
 
