@@ -38,6 +38,7 @@ import {
 } from "../domain/teamFactory.js";
 import { runOffseason } from "../engine/offseasonSimulator.js";
 import { buildTeamUsageProfile, resolveDepthChartRoomShares } from "../engine/depthChartUsage.js";
+import { coverageDepthRating } from "../domain/ratings.js";
 import {
   defaultDepthChartForTeam,
   isTradeValueAcceptable,
@@ -345,7 +346,7 @@ function developmentFocusRatings(team, player) {
   if (player.position === "DL" || player.position === "LB" || player.position === "DB") {
     return defenseStyle === "pressure-front"
       ? ["passRush", "blockShedding", "pursuit", "playRecognition"]
-      : ["coverage", "playRecognition", "awareness", "discipline"];
+      : ["coverageShort", "coverageMedium", "coverageDeep", "playRecognition"];
   }
   return ["awareness", "discipline", "playRecognition", "agility"];
 }
@@ -581,7 +582,12 @@ function buildWeeklyMatchPlan(team, roster = [], opponent = null, opponentRoster
     roster,
     "DB",
     4,
-    (player) => averagePlayerRating(player, ["coverage", "manCoverage", "zoneCoverage", "playRecognition"], player.overall || 70)
+    (player) =>
+      averagePlayerRating(
+        player,
+        ["coverageShort", "coverageMedium", "coverageDeep", "manCoverage", "zoneCoverage", "playRecognition"],
+        player.overall || 70
+      )
   );
   const ownFront = Math.round(
     averageTopPlayers(roster, "DL", 4, (player) => averagePlayerRating(player, ["passRush", "blockShedding", "tackle"], player.overall || 70)) *
@@ -594,7 +600,12 @@ function buildWeeklyMatchPlan(team, roster = [], opponent = null, opponentRoster
     opponentRoster,
     "DB",
     4,
-    (player) => averagePlayerRating(player, ["coverage", "manCoverage", "zoneCoverage", "playRecognition"], player.overall || 70)
+    (player) =>
+      averagePlayerRating(
+        player,
+        ["coverageShort", "coverageMedium", "coverageDeep", "manCoverage", "zoneCoverage", "playRecognition"],
+        player.overall || 70
+      )
   );
   const oppPassRush = Math.round(
     averageTopPlayers(opponentRoster, "DL", 4, (player) => averagePlayerRating(player, ["passRush", "blockShedding"], player.overall || 70)) *
@@ -860,8 +871,19 @@ function computeSchemeFit(player, team) {
     );
   }
   if (["DL", "LB", "DB"].includes(player.position)) {
+    const coverageShort = coverageDepthRating(ratings, "short");
+    const coverageMedium = coverageDepthRating(ratings, "medium");
+    const coverageDeep = coverageDepthRating(ratings, "deep");
     return clamp(
-      Math.round((ratings.playRecognition || 65) * 0.36 + (ratings.awareness || 65) * 0.24 + (ratings.coverage || 65) * (0.2 + aggression * 0.18)),
+      Math.round(
+        coverageShort * 0.16 +
+          coverageMedium * 0.18 +
+          coverageDeep * 0.14 +
+          (ratings.playRecognition || 65) * 0.22 +
+          (ratings.awareness || 65) * 0.16 +
+          (ratings.coverage || 65) * 0.06 +
+          aggression * 10
+      ),
       45,
       99
     );

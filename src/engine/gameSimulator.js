@@ -1,6 +1,6 @@
 import { DEPTH_CHART_ROLE_NAMES, DRIVE_OUTCOMES, NFL_STRUCTURE } from "../config.js";
 import { createZeroedSeasonStats, mergeStats } from "../domain/playerFactory.js";
-import { quarterbackDepthAccuracy } from "../domain/ratings.js";
+import { coverageDepthRating, quarterbackDepthAccuracy } from "../domain/ratings.js";
 import { clamp, mean } from "../utils/rng.js";
 import { getTeamPlayers } from "../domain/teamFactory.js";
 import { buildTeamUsageProfile, depthOrderedPlayers, resolveDepthChartRoomShares } from "./depthChartUsage.js";
@@ -154,6 +154,12 @@ function averageRatingFromPlayers(players, keys, fallback = 68) {
   return mean(clean.map((player) => mean(keys.map((key) => rating(player, key, fallback)))));
 }
 
+function averageCoverageDepthFromRotation(rotation, bucket = "medium", fallback = 68) {
+  const players = (rotation || []).map((row) => row.player).filter(Boolean);
+  if (!players.length) return fallback;
+  return mean(players.map((player) => coverageDepthRating(player?.ratings || {}, bucket)));
+}
+
 const PASS_DEPTH_PROFILES = {
   short: {
     completionBase: 0.1,
@@ -205,6 +211,27 @@ function choosePassDepthBucket(rng, receiver, qb) {
   return rng.weightedPick(
     Object.fromEntries(Object.entries(weights).map(([key, value]) => [key, Math.max(0.05, Number(value || 0))]))
   );
+}
+
+function chooseCoverageDefender(rng, defenseContext, bucket = "medium", takeaway = false) {
+  const dbBase = bucket === "deep" ? 1.32 : bucket === "short" ? 1.04 : 1.18;
+  const lbBase = bucket === "short" ? 0.56 : bucket === "medium" ? 0.4 : 0.18;
+  return chooseWeightedEntity(rng, [
+    ...defenseContext.dbRotation.map((row) => {
+      const coverageBoost = clamp(coverageDepthRating(row.player?.ratings || {}, bucket) / 70, 0.72, 1.45);
+      const takeawayBoost = takeaway
+        ? clamp((rating(row.player, "playRecognition") + rating(row.player, "awareness")) / 140, 0.86, 1.35)
+        : 1;
+      return { player: row.player, weight: row.usageWeight * dbBase * coverageBoost * takeawayBoost };
+    }),
+    ...defenseContext.lbRotation.map((row) => {
+      const coverageBoost = clamp(coverageDepthRating(row.player?.ratings || {}, bucket) / 70, 0.68, 1.25);
+      const takeawayBoost = takeaway
+        ? clamp((rating(row.player, "playRecognition") + rating(row.player, "awareness")) / 142, 0.82, 1.22)
+        : 1;
+      return { player: row.player, weight: row.usageWeight * lbBase * coverageBoost * takeawayBoost };
+    })
+  ]);
 }
 
 const GAME_MISS_CHANCE_BY_POSITION = {
@@ -344,15 +371,21 @@ function buildTeamContext(league, teamId, rng) {
       averageRatingFromRotation(dlRotation, ["tackle", "blockShedding", "strength"], 68),
       averageRatingFromRotation(lbRotation, ["tackle", "pursuit", "hitPower"], 68)
     ]),
-    coverage: mean([
-      averageRatingFromRotation(dbRotation, ["coverage", "manCoverage", "zoneCoverage", "playRecognition"], 68),
-      averageRatingFromRotation(lbRotation, ["coverage", "playRecognition", "pursuit"], 65)
-    ]),
+    coverageShort:
+      averageCoverageDepthFromRotation(dbRotation, "short", 68) * 0.62 +
+      averageCoverageDepthFromRotation(lbRotation, "short", 65) * 0.38,
+    coverageMedium:
+      averageCoverageDepthFromRotation(dbRotation, "medium", 68) * 0.7 +
+      averageCoverageDepthFromRotation(lbRotation, "medium", 64) * 0.3,
+    coverageDeep:
+      averageCoverageDepthFromRotation(dbRotation, "deep", 68) * 0.82 +
+      averageCoverageDepthFromRotation(lbRotation, "deep", 62) * 0.18,
     tackling: mean([
       averageRatingFromRotation(lbRotation, ["tackle", "pursuit", "hitPower"], 68),
       averageRatingFromRotation(dbRotation, ["tackle", "pursuit", "coverage"], 66)
     ])
   };
+  unitRatings.coverage = mean([unitRatings.coverageShort, unitRatings.coverageMedium, unitRatings.coverageDeep]);
   return {
     team,
     roster,
@@ -419,14 +452,9 @@ function recordTeamTackle(deltaMap, rng, defenseContext) {
   return tackler;
 }
 
-function maybeRecordPassDefended(deltaMap, rng, defenseContext, chance = 0.62) {
+function maybeRecordPassDefended(deltaMap, rng, defenseContext, bucket = "medium", chance = 0.62) {
   if (!rng.chance(chance)) return;
-  const nickelRate = defenseContext.usageProfile?.sharesByPosition?.DB?.[4] || 0.4;
-  const lbCoverageWeight = clamp(0.24 + (1 - nickelRate) * 0.22, 0.18, 0.38);
-  const defender = chooseWeightedEntity(rng, [
-    ...defenseContext.dbRotation.map((row) => ({ player: row.player, weight: row.usageWeight * 1.2 })),
-    ...defenseContext.lbRotation.map((row) => ({ player: row.player, weight: row.usageWeight * lbCoverageWeight }))
-  ]);
+  const defender = chooseCoverageDefender(rng, defenseContext, bucket, false);
   if (!defender) return;
   addDelta(deltaMap, defender.id, { defense: { passDefended: 1 } });
 }
@@ -497,6 +525,12 @@ function simulateDrive(offenseContext, defenseContext, rng, mode) {
       const depthBucket = choosePassDepthBucket(rng, receiver, qb);
       const depthProfile = PASS_DEPTH_PROFILES[depthBucket];
       const depthAccuracy = quarterbackDepthAccuracy(qb?.ratings, depthBucket);
+      const depthCoverage =
+        depthBucket === "short"
+          ? defenseContext.unitRatings?.coverageShort || coverage
+          : depthBucket === "deep"
+            ? defenseContext.unitRatings?.coverageDeep || coverage
+            : defenseContext.unitRatings?.coverageMedium || coverage;
       const receiverHands = mean([
         rating(receiver, "catching"),
         rating(receiver, "spectacularCatch", rating(receiver, "catching")),
@@ -512,10 +546,10 @@ function simulateDrive(offenseContext, defenseContext, rng, mode) {
           depthProfile.completionBase +
           (depthAccuracy - 70) / 245 +
           (receiverHands - 70) / 420 +
-          (receiverSeparation - coverage) / 520 +
+          (receiverSeparation - depthCoverage) / 520 +
           (linePass - passRush) / 360 +
           (offenseContext.team.offenseRating - defenseContext.team.defenseRating) / 430 -
-          (coverage - 70) / 370,
+          (depthCoverage - 70) / 370,
         depthBucket === "deep" ? 0.24 : depthBucket === "medium" ? 0.42 : 0.52,
         depthProfile.maxCompletion
       );
@@ -526,7 +560,7 @@ function simulateDrive(offenseContext, defenseContext, rng, mode) {
           rng.int(depthProfile.airYards[0], depthProfile.airYards[1]) +
             Math.round((qbArm - 70) / 7) +
             Math.round((receiverSeparation - 70) / 10) +
-            Math.round((receiverSeparation - coverage) / 16),
+            Math.round((receiverSeparation - depthCoverage) / 16),
           depthProfile.airYards[0],
           depthProfile.airYards[1] + (depthBucket === "deep" ? 9 : 5)
         );
@@ -577,7 +611,7 @@ function simulateDrive(offenseContext, defenseContext, rng, mode) {
         );
         const intChance = clamp(
           0.018 +
-            (coverage - depthAccuracy) / 360 +
+            (depthCoverage - depthAccuracy) / 360 +
             (defenseContext.team.defenseRating - qb.overall) / 640 -
             completionChance * 0.015 +
             depthProfile.intDelta -
@@ -588,10 +622,7 @@ function simulateDrive(offenseContext, defenseContext, rng, mode) {
         if (rng.chance(intChance)) {
           turnover = true;
           turnoverType = "INT";
-          const defender = chooseWeightedEntity(rng, [
-            ...defenseContext.dbRotation.map((row) => ({ player: row.player, weight: row.usageWeight * 1.18 })),
-            ...defenseContext.lbRotation.map((row) => ({ player: row.player, weight: row.usageWeight * 0.45 }))
-          ]);
+          const defender = chooseCoverageDefender(rng, defenseContext, depthBucket, true);
           addDelta(driveDeltas, qb.id, { passing: { int: 1 } });
           if (defender) {
             addDelta(driveDeltas, defender.id, { defense: { int: 1, passDefended: 1 } });
@@ -635,7 +666,7 @@ function simulateDrive(offenseContext, defenseContext, rng, mode) {
             );
             if (rng.chance(dropChance)) addDelta(driveDeltas, receiver.id, { receiving: { drops: 1 } });
           }
-          maybeRecordPassDefended(driveDeltas, rng, defenseContext, depthProfile.pbuChance);
+          maybeRecordPassDefended(driveDeltas, rng, defenseContext, depthBucket, depthProfile.pbuChance);
           addPlay({
             type: "incomplete",
             yards: 0,

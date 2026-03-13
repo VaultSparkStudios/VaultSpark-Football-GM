@@ -50,6 +50,10 @@ Build status:
   - QB overall/scheme-fit logic now reads those ratings instead of only a single broad passing-accuracy number
   - live pass resolution now chooses short/intermediate/deep targets and applies bucket-specific completion, sack, breakup, and interception pressure
 - PFR imports now derive QB depth ratings from passing volume, completion rate, and yards per attempt so productive modern passers no longer import as low-end backups
+- Defensive pass coverage now uses depth-aware ratings too:
+  - generated/imported LB and DB ratings derive `coverageShort`, `coverageMedium`, and `coverageDeep` from the existing coverage/man/zone/play-recognition base
+  - DB/LB overall and scheme-fit logic now account for those depth buckets instead of only a single blended coverage number
+  - the game simulator now applies bucket-specific defensive coverage pressure and chooses pass-breakup/interception defenders using the relevant depth bucket
 - Challenge enforcement now blocks user free-agent actions in `no-free-agency` mode and blocks trades that would deliver top-10 picks to the controlled team in `no-top-10-picks` mode
 - That enforcement now reaches the remaining obvious user acquisition paths too:
   - waiver claims are blocked in `no-free-agency`
@@ -65,6 +69,7 @@ Build status:
   - `node --check src/engine/gameSimulator.js`
   - `node --check test/quarterback-depth-ratings.test.js`
   - `node --test --test-isolation=none test/quarterback-depth-ratings.test.js`
+  - `node --test --test-isolation=none test/coverage-depth-ratings.test.js`
   - `node --test --test-isolation=none test/stats-regression.test.js`
   - `node --test --test-isolation=none test/ratings-regression.test.js`
   - `node --test --test-isolation=none test/new-systems.test.js`
@@ -91,7 +96,7 @@ Build status:
 
 Current priorities:
 1. Use the new setup diagnostics to confirm whether any remaining setup/main-menu latency still needs another trim after the lazy browser bootstrap
-2. Extend the new QB depth-rating pass into any remaining coverage/targeting gaps only if the refreshed NFL/PFF spot checks still show per-position drift after calibration
+2. Decide whether the refreshed NFL/PFF spot checks justify adding route-family or man/zone-split target weighting on top of the new QB and coverage depth buckets
 3. Verify the next GitHub push clears both `CI` and `Deploy Backend Runtime` now that the test regression and GHCR tag casing are fixed
 4. Feed the new world-state deeper into any remaining owner expectation loops and transaction AI edges instead of stopping at the current trade/FA hooks
 5. Extend the new benchmark/qualification hint pattern anywhere else the UI compares all-player data to starter-qualified or team-level baselines
@@ -100,4 +105,4 @@ Known issues:
 - The Pages artifact remains client-only unless `GAME_SERVICE_ORIGIN` or `API_DOMAIN` is configured and the separate backend/runtime rollout is live
 - Challenge restrictions are much more mechanical now, but there may still be edge-case user acquisition paths worth auditing later
 - The unrelated realism/runtime work was parked in a local stash and is not yet reconciled back into the branch
-- Full `npm.cmd test` did not finish within the local command timeout window during the QB depth-rating pass; targeted stats/ratings regressions and `build:pages` completed successfully
+- Full `npm.cmd test` still exceeds the local command timeout window in this shell, so GitHub Actions remains the authoritative full-suite verification path for the depth-rating passes

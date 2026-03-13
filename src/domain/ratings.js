@@ -73,26 +73,30 @@ const POSITION_FORMULAS = {
     pursuit: 0.08
   },
   LB: {
-    speed: 0.12,
-    strength: 0.12,
-    acceleration: 0.1,
-    tackle: 0.2,
-    coverage: 0.1,
+    speed: 0.11,
+    strength: 0.11,
+    acceleration: 0.09,
+    tackle: 0.19,
+    coverageShort: 0.1,
+    coverageMedium: 0.08,
+    coverageDeep: 0.04,
     pursuit: 0.12,
-    hitPower: 0.1,
-    blockShedding: 0.08,
-    awareness: 0.12,
-    playRecognition: 0.13
+    hitPower: 0.09,
+    blockShedding: 0.07,
+    awareness: 0.1,
+    playRecognition: 0.1
   },
   DB: {
-    speed: 0.16,
-    acceleration: 0.14,
-    agility: 0.1,
-    coverage: 0.14,
-    manCoverage: 0.13,
-    zoneCoverage: 0.13,
-    tackle: 0.08,
-    awareness: 0.1,
+    speed: 0.14,
+    acceleration: 0.12,
+    agility: 0.08,
+    coverageShort: 0.08,
+    coverageMedium: 0.12,
+    coverageDeep: 0.16,
+    manCoverage: 0.1,
+    zoneCoverage: 0.1,
+    tackle: 0.06,
+    awareness: 0.08,
     playRecognition: 0.1
   },
   K: {
@@ -123,11 +127,72 @@ function derivedQuarterbackDepthRatings(ratings = {}) {
   };
 }
 
+function derivedCoverageDepthRatings(ratings = {}) {
+  const base = Number(ratings.coverage ?? 60);
+  const man = Number(ratings.manCoverage ?? base);
+  const zone = Number(ratings.zoneCoverage ?? base);
+  const speed = Number(ratings.speed ?? base);
+  const acceleration = Number(ratings.acceleration ?? speed);
+  const awareness = Number(ratings.awareness ?? base);
+  const playRecognition = Number(ratings.playRecognition ?? base);
+  const tackle = Number(ratings.tackle ?? base);
+  const pursuit = Number(ratings.pursuit ?? tackle);
+  return {
+    coverageShort: clamp(
+      Math.round(
+        base * 0.4 +
+          zone * 0.12 +
+          man * 0.08 +
+          awareness * 0.1 +
+          playRecognition * 0.12 +
+          tackle * 0.08 +
+          pursuit * 0.1
+      ),
+      40,
+      99
+    ),
+    coverageMedium: clamp(
+      Math.round(
+        base * 0.38 +
+          zone * 0.12 +
+          man * 0.1 +
+          awareness * 0.1 +
+          playRecognition * 0.14 +
+          speed * 0.08 +
+          acceleration * 0.08
+      ),
+      40,
+      99
+    ),
+    coverageDeep: clamp(
+      Math.round(
+        base * 0.24 +
+          zone * 0.16 +
+          man * 0.12 +
+          awareness * 0.08 +
+          playRecognition * 0.12 +
+          speed * 0.16 +
+          acceleration * 0.12
+      ),
+      40,
+      99
+    )
+  };
+}
+
 export function ensureQuarterbackDepthRatings(ratings = {}) {
   const derived = derivedQuarterbackDepthRatings(ratings);
   if (!Number.isFinite(Number(ratings.throwAccuracyShort))) ratings.throwAccuracyShort = derived.throwAccuracyShort;
   if (!Number.isFinite(Number(ratings.throwAccuracyMedium))) ratings.throwAccuracyMedium = derived.throwAccuracyMedium;
   if (!Number.isFinite(Number(ratings.throwAccuracyDeep))) ratings.throwAccuracyDeep = derived.throwAccuracyDeep;
+  return ratings;
+}
+
+export function ensureCoverageDepthRatings(ratings = {}) {
+  const derived = derivedCoverageDepthRatings(ratings);
+  if (!Number.isFinite(Number(ratings.coverageShort))) ratings.coverageShort = derived.coverageShort;
+  if (!Number.isFinite(Number(ratings.coverageMedium))) ratings.coverageMedium = derived.coverageMedium;
+  if (!Number.isFinite(Number(ratings.coverageDeep))) ratings.coverageDeep = derived.coverageDeep;
   return ratings;
 }
 
@@ -138,10 +203,19 @@ export function quarterbackDepthAccuracy(ratings = {}, bucket = "medium") {
   return ensured.throwAccuracyMedium;
 }
 
+export function coverageDepthRating(ratings = {}, bucket = "medium") {
+  const ensured = ensureCoverageDepthRatings({ ...ratings });
+  if (bucket === "short") return ensured.coverageShort;
+  if (bucket === "deep") return ensured.coverageDeep;
+  return ensured.coverageMedium;
+}
+
 export function calculatePositionOverall(position, ratings) {
   const formula = POSITION_FORMULAS[position];
   if (!formula) return 60;
-  const resolvedRatings = position === "QB" ? ensureQuarterbackDepthRatings({ ...(ratings || {}) }) : ratings || {};
+  const resolvedRatings = { ...(ratings || {}) };
+  if (position === "QB") ensureQuarterbackDepthRatings(resolvedRatings);
+  if (position === "LB" || position === "DB") ensureCoverageDepthRatings(resolvedRatings);
   const weightTotal = Math.max(
     0.0001,
     Object.values(formula).reduce((sum, weight) => sum + Number(weight || 0), 0)

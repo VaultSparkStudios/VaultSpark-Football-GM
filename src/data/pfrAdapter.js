@@ -1,6 +1,6 @@
 import { DEVELOPMENT_TRAITS } from "../config.js";
 import { buildContract } from "../domain/contracts.js";
-import { calculatePositionOverall, ensureQuarterbackDepthRatings } from "../domain/ratings.js";
+import { calculatePositionOverall, ensureCoverageDepthRatings, ensureQuarterbackDepthRatings } from "../domain/ratings.js";
 import { clamp } from "../utils/rng.js";
 
 const POSITION_MAP = {
@@ -37,6 +37,7 @@ function deriveRatingsFromPfr(raw, rng) {
   const tackles = Number(raw.tackles || 0);
   const sacks = Number(raw.sacks || 0);
   const ints = Number(raw.interceptions || raw.def_int || 0);
+  const passesDefended = Number(raw.pass_defended || raw.passes_defended || raw.pd || 0);
   const completionPct = passAtt > 0 ? passCmp / passAtt : 0;
   const yardsPerAttempt = passAtt > 0 ? passYds / passAtt : 0;
 
@@ -78,7 +79,9 @@ function deriveRatingsFromPfr(raw, rng) {
     passBlocking: clamp(58 + rng.int(-8, 10), 40, 95),
     runBlocking: clamp(58 + rng.int(-8, 10), 40, 95),
     tackle: clamp(58 + Math.floor(tackles / 28) + rng.int(-6, 6), 45, 98),
-    coverage: clamp(58 + Math.floor(ints * 3) + rng.int(-7, 7), 40, 98),
+    coverage: clamp(57 + Math.floor(ints * 3) + Math.floor(passesDefended * 0.8) + rng.int(-6, 7), 40, 98),
+    manCoverage: clamp(56 + Math.floor(ints * 2) + Math.floor(passesDefended * 0.9) + rng.int(-6, 7), 40, 98),
+    zoneCoverage: clamp(57 + Math.floor(ints * 2.5) + Math.floor(passesDefended) + Math.floor(tackles / 40) + rng.int(-6, 7), 40, 98),
     awareness: clamp(
       60 + Math.floor((passYds + recYds + tackles * 8) / 760) + Math.floor(passAtt / 210) + rng.int(-6, 7),
       45,
@@ -131,6 +134,7 @@ export function normalizePfrPlayers(rawPlayers, rng, year) {
       const experience = Math.max(0, age - 21);
       const ratings = deriveRatingsFromPfr(raw, rng);
       if (position === "QB") ensureQuarterbackDepthRatings(ratings);
+      if (position === "LB" || position === "DB") ensureCoverageDepthRatings(ratings);
       const overall = calculatePositionOverall(position, ratings);
       const { key, potential } = inferTraitAndPotential(overall, rng);
 

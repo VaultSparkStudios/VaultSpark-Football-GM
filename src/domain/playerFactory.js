@@ -4,7 +4,7 @@ import {
   PLAYER_ATTRIBUTE_KEYS,
   ROSTER_TEMPLATE
 } from "../config.js";
-import { calculatePositionOverall, ensureQuarterbackDepthRatings } from "./ratings.js";
+import { calculatePositionOverall, ensureCoverageDepthRatings, ensureQuarterbackDepthRatings } from "./ratings.js";
 import { buildContract } from "./contracts.js";
 import { clamp } from "../utils/rng.js";
 
@@ -212,6 +212,7 @@ export function createSyntheticPlayer({ teamId, position, year, rng, draft = fal
   const potential = randomPotential(devTrait, rng);
   const ratings = randomAttributeBase(position, rng);
   if (position === "QB") ensureQuarterbackDepthRatings(ratings);
+  if (position === "LB" || position === "DB") ensureCoverageDepthRatings(ratings);
   const overall = calculatePositionOverall(position, ratings);
   const age = draft ? rng.int(21, 23) : rng.int(22, 33);
   const id = `P${year}-${teamId}-${position}-${Math.floor(rng.next() * 1e8)}`;
