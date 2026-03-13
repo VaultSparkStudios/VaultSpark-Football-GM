@@ -3,6 +3,10 @@
 Last updated: 2026-03-13
 
 What was completed:
+- Updated GitHub workflow action versions for the Node 24 migration warning:
+  - bumped `actions/checkout` from `v4` to `v5` in `ci.yml`, `deploy-backend.yml`, and `deploy-pages.yml`
+  - bumped `actions/setup-node` from `v4` to `v5` in `ci.yml` and `deploy-pages.yml`
+  - left the workflow Node versions themselves unchanged (`CI` stays on Node 24, Pages build stays on Node 22) because the warning was about action runtimes, not the app runtime
 - Added shared AV calculation in `src/stats/approximateValue.js` and pushed AV through the backend stats path:
   - season/career stat rows from `StatBook` now include `av`
   - the Statistics page now shows AV in the main season/career tables instead of only in player profile/timeline views
@@ -144,9 +148,10 @@ What is mid-flight:
 - The unrelated realism/runtime work is still parked in a local stash and has not been reincorporated
 - Challenge restrictions are much more mechanical now, though edge-case acquisition paths may still be worth auditing later
 - The broader 2025 baseline path currently lives as a generated output artifact plus smoothed live constants; it is not yet promoted to a dedicated checked-in builder script
+- The workflow bump still needs one fresh GitHub run checked for warning removal; no local app/runtime behavior changed here
 
 What to do next:
-1. Push this AV/snap-share/baseline refresh batch and confirm GitHub stays green on the next run
+1. Push the workflow action-version bump and confirm the next GitHub run no longer shows the Node 20 JavaScript-action deprecation warning
 2. Decide whether to promote the generated StatMuse baseline flow into a checked-in repo script instead of keeping it as an output artifact plus smoothed constants
 3. Use the new setup diagnostics to decide whether any remaining setup/main-menu latency still needs another trim after the lazy browser bootstrap
 4. Feed the new world-state deeper into any remaining owner expectation loops and transaction AI edges

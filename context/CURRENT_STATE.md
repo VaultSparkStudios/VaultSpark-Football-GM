@@ -75,6 +75,10 @@ Build status:
   - backend depth-chart share resolution now preserves the room target total while scaling untouched players around manual overrides
   - the depth-chart UI mirrors that redistribution immediately before save, so the browser view matches the saved/runtime behavior
   - session/API regressions now lock the rebalance behavior in
+- GitHub workflow action runtimes are now updated for the 2026 Node 24 migration warning:
+  - bumped `actions/checkout` from `v4` to `v5` in `ci.yml`, `deploy-backend.yml`, and `deploy-pages.yml`
+  - bumped `actions/setup-node` from `v4` to `v5` in `ci.yml` and `deploy-pages.yml`
+  - this is intended to clear GitHub's deprecation warning about Node 20-based JavaScript actions without changing the app runtime itself
 - Challenge enforcement now blocks user free-agent actions in `no-free-agency` mode and blocks trades that would deliver top-10 picks to the controlled team in `no-top-10-picks` mode
 - That enforcement now reaches the remaining obvious user acquisition paths too:
   - waiver claims are blocked in `no-free-agency`
@@ -123,6 +127,7 @@ Current priorities:
 3. Feed the new world-state deeper into any remaining owner expectation loops and transaction AI edges instead of stopping at the current trade/FA hooks
 4. Extend the new benchmark/qualification hint pattern anywhere else the UI compares all-player data to starter-qualified or team-level baselines
 5. Decide whether the generated StatMuse 2025 baseline should become a first-class repo script instead of only an output artifact plus smoothed live constants
+6. Confirm the next GitHub Actions run no longer emits the Node 20 JavaScript-action deprecation warning after the workflow action-version bump
 
 Known issues:
 - The Pages artifact remains client-only unless `GAME_SERVICE_ORIGIN` or `API_DOMAIN` is configured and the separate backend/runtime rollout is live

@@ -1,6 +1,7 @@
 # Task Board
 
 ## Now
+- Confirm the next GitHub Actions run no longer emits the Node 20 JavaScript-action deprecation warning after bumping `actions/checkout`/`actions/setup-node`
 - Verify the next GitHub push clears `CI`, `Deploy Backend Runtime`, and `Deploy Pages` after the AV/snap-share/baseline refresh pass
 - Validate whether any remaining setup/main-menu latency still needs another trim after the new lazy browser bootstrap
 - Feed the new world-state deeper into any remaining owner expectation loops and transaction AI edges
