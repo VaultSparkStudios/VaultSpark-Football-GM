@@ -1,14 +1,14 @@
 # Task Board
 
 ## Now
-- Validate the new QB and DB/LB depth-rating passes against refreshed 2025 NFL/PFF benchmarks and decide whether route-family or man/zone target weighting is the next realism lever
+- Validate the new QB/coverage depth buckets plus route-family/coverage-shell pass structure against refreshed 2025 NFL/PFF benchmarks and decide whether a regenerated realism profile is the next realism lever
 - Verify the next GitHub push clears both `CI` and `Deploy Backend Runtime` after the realism-regression and GHCR-tag fixes
 - Validate whether any remaining setup/main-menu latency still needs another trim after the new lazy browser bootstrap
 - Feed the new world-state deeper into any remaining owner expectation loops and transaction AI edges
 - Extend the new stats benchmark/qualification hint pattern to any other views that still imply apples-to-apples NFL averages without saying so
 
 ## Next
-- Decide whether the current per-position stat tuning still needs a regenerated realism profile now that both QB throws and defender coverage are depth-aware in the live simulator
+- Decide whether the current per-position stat tuning still needs a regenerated realism profile now that the live simulator has QB depth, defender depth, and route-family/coverage-shell structure
 - Use the new setup diagnostics to decide whether any remaining setup cost is now dominated by save listing, backup listing, or client-side render work
 - Add UI hints for weekly plan/scouting-fit outputs where they matter most beyond the new overview/scouting summaries
 - Add setup/settings UI hints for the challenge-rule failures that now have frontend error formatting

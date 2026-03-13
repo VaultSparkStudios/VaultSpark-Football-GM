@@ -68,12 +68,15 @@ test("starter-qualified season averages stay near weighted baselines", () => {
 
   assert.ok(Math.abs(avg(qbs, "att") - 534) <= 45);
   assert.ok(Math.abs(avg(qbs, "yds") - 3850) <= 325);
+  assert.ok(Math.abs(avg(qbs, "cmp") / avg(qbs, "att") - 0.65) <= 0.03);
   assert.ok(Math.abs(avg(rbs, "att") - 162) <= 18);
   assert.ok(Math.abs(avg(rbs, "yds") - 708) <= 60);
   assert.ok(Math.abs(avg(wrs, "tgt") - 88) <= 8);
+  assert.ok(Math.abs(avg(wrs, "rec") - 58) <= 6);
   assert.ok(Math.abs(avg(wrs, "yds") - 761) <= 65);
   assert.ok(Math.abs(avg(tes, "tgt") - 77) <= 8);
   assert.ok(Math.abs(avg(tes, "yds") - 578) <= 55);
+  assert.ok(Math.abs(avg(tes, "td") - 4) <= 1);
   assert.ok(Math.abs(avg(dbs, "int") - 2.1) <= 0.6);
   assert.ok(Math.abs(avg(dbs, "pd") - 10.2) <= 1.5);
   assert.ok(Math.abs(avg(ks, "fga") - 34) <= 4);

@@ -55,6 +55,10 @@ Build status:
   - DB/LB overall and scheme-fit logic now account for those depth buckets instead of only a single blended coverage number
   - the game simulator now applies bucket-specific defensive coverage pressure and chooses pass-breakup/interception defenders using the relevant depth bucket
 - The default career realism profile now uses modern 17-game-era receiving touchdown totals for RB and TE careers, aligning the career guardrails with the existing season baseline expectations
+- The live pass game now carries route-family and coverage-shell structure on top of the depth buckets:
+  - pass plays choose route families such as `quick`, `breaker`, `seam`, `vertical`, and `space` from player strengths, weekly plan, and coaching tendencies
+  - defenses present lightweight man/zone plus single-high/split-safety shells derived from weekly plan, scheme aggression, and blitz tendency
+  - play logs now record route family, depth bucket, and defensive shell metadata so future tuning can inspect what the simulator actually called
 - Challenge enforcement now blocks user free-agent actions in `no-free-agency` mode and blocks trades that would deliver top-10 picks to the controlled team in `no-top-10-picks` mode
 - That enforcement now reaches the remaining obvious user acquisition paths too:
   - waiver claims are blocked in `no-free-agency`
@@ -75,6 +79,7 @@ Build status:
   - `node --test --test-isolation=none test/ratings-regression.test.js`
   - `node --test --test-isolation=none test/new-systems.test.js`
   - `node --test --test-isolation=none test/realism-career-regression.test.js`
+  - `node --test --test-isolation=none test/pass-structure-regression.test.js`
   - `npm.cmd run build:pages`
   - `node --check public/app.js`
   - `node --check public/lib/api/createApiClient.js`
@@ -98,7 +103,7 @@ Build status:
 
 Current priorities:
 1. Use the new setup diagnostics to confirm whether any remaining setup/main-menu latency still needs another trim after the lazy browser bootstrap
-2. Decide whether the refreshed NFL/PFF spot checks justify adding route-family or man/zone-split target weighting on top of the new QB and coverage depth buckets
+2. Decide whether the refreshed NFL/PFF spot checks justify a regenerated realism profile or more explicit route-role/personnel weighting now that route family plus coverage shell are in the live sim
 3. Verify the next GitHub push clears both `CI` and `Deploy Backend Runtime` now that the test regression and GHCR tag casing are fixed
 4. Feed the new world-state deeper into any remaining owner expectation loops and transaction AI edges instead of stopping at the current trade/FA hooks
 5. Extend the new benchmark/qualification hint pattern anywhere else the UI compares all-player data to starter-qualified or team-level baselines

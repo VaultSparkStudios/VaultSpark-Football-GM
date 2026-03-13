@@ -3,6 +3,11 @@
 Last updated: 2026-03-12
 
 What was completed:
+- Added route-family and coverage-shell structure to the live pass game:
+  - pass plays now choose route families (`quick`, `breaker`, `seam`, `vertical`, `space`) from player strengths, weekly plan, coaching tendency, and the current defensive shell
+  - defenses now present a lightweight man/zone plus single-high/split-safety shell derived from weekly plan, aggression, and blitz tendency
+  - pass-play logs now record route family, depth bucket, and coverage shell metadata so simulator behavior is inspectable instead of opaque
+- Added a regression that verifies the play log now carries route-family and coverage-shell structure on pass plays
 - Added depth-based defensive coverage ratings and pass-defense resolution:
   - generated/imported LB and DB players now derive `coverageShort`, `coverageMedium`, and `coverageDeep`
   - LB/DB overall, development focus, scheme-fit, and team-coverage evaluation now read those ratings instead of only one blended coverage number
@@ -91,6 +96,7 @@ What was completed:
   - `node --test --test-isolation=none test/ratings-regression.test.js`
   - `node --test --test-isolation=none test/new-systems.test.js`
   - `node --test --test-isolation=none test/realism-career-regression.test.js`
+  - `node --test --test-isolation=none test/pass-structure-regression.test.js`
   - `npm.cmd run build:pages`
   - `node --check src/stats/realismCalibrator.js`
   - `node --check test/stats-regression.test.js`
@@ -123,8 +129,8 @@ What is mid-flight:
 - Full `npm.cmd test` exceeded the local command timeout window during the QB depth-rating pass, so the focused suites above are the confirmed validation set for this session
 
 What to do next:
-1. Validate the new QB and DB/LB depth-rating passes against refreshed 2025 NFL/PFF benchmarks and decide whether route-family or man/zone target weighting is the next realism lever
-2. Push the defensive depth-rating pass and confirm GitHub stays green on the next run
+1. Validate the new QB/coverage depth buckets plus route-family/coverage-shell pass structure against refreshed 2025 NFL/PFF benchmarks and decide whether a regenerated realism profile is the next realism lever
+2. Push the route-family pass and confirm GitHub stays green on the next run
 3. Use the new setup diagnostics to decide whether any remaining setup/main-menu latency still needs another trim after the lazy browser bootstrap
 4. Feed the new world-state deeper into any remaining owner expectation loops and transaction AI edges
 5. Extend the new benchmark/qualification hint pattern to any other views that still imply apples-to-apples NFL averages without saying so

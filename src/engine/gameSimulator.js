@@ -190,7 +190,101 @@ const PASS_DEPTH_PROFILES = {
   }
 };
 
-function choosePassDepthBucket(rng, receiver, qb) {
+const ROUTE_FAMILY_PROFILES = {
+  quick: {
+    depthWeights: { short: 0.74, medium: 0.24, deep: 0.02 },
+    vsMan: -0.006,
+    vsZone: 0.028,
+    vsMiddleOpen: 0.004,
+    vsMiddleClosed: 0.002,
+    yacBonus: 2,
+    airYardsDelta: -2,
+    pbuDelta: -0.05
+  },
+  breaker: {
+    depthWeights: { short: 0.2, medium: 0.68, deep: 0.12 },
+    vsMan: 0.02,
+    vsZone: 0.008,
+    vsMiddleOpen: 0.012,
+    vsMiddleClosed: -0.002,
+    yacBonus: 1,
+    airYardsDelta: 1,
+    pbuDelta: 0
+  },
+  seam: {
+    depthWeights: { short: 0.08, medium: 0.56, deep: 0.36 },
+    vsMan: 0.016,
+    vsZone: -0.012,
+    vsMiddleOpen: 0.024,
+    vsMiddleClosed: -0.012,
+    yacBonus: 0,
+    airYardsDelta: 3,
+    pbuDelta: 0.03
+  },
+  vertical: {
+    depthWeights: { short: 0.04, medium: 0.24, deep: 0.72 },
+    vsMan: 0.022,
+    vsZone: -0.018,
+    vsMiddleOpen: -0.01,
+    vsMiddleClosed: 0.014,
+    yacBonus: -1,
+    airYardsDelta: 4,
+    pbuDelta: 0.05
+  },
+  space: {
+    depthWeights: { short: 0.82, medium: 0.17, deep: 0.01 },
+    vsMan: 0.01,
+    vsZone: 0.02,
+    vsMiddleOpen: 0.006,
+    vsMiddleClosed: 0.004,
+    yacBonus: 3,
+    airYardsDelta: -3,
+    pbuDelta: -0.04
+  }
+};
+
+function routeProfile(routeFamily = "breaker") {
+  return ROUTE_FAMILY_PROFILES[routeFamily] || ROUTE_FAMILY_PROFILES.breaker;
+}
+
+function buildCoverageShell(team, weeklyPlan = null) {
+  const tendencies = team?.coaching?.tendencies || {};
+  const blitzRate = Number(tendencies.blitzRate || 1);
+  const aggression = Number(team?.scheme?.aggression ?? 0.5);
+  const aggressionDelta = Number(weeklyPlan?.aggressionDelta || 0);
+  const defenseStyle = team?.schemeIdentity?.defense || "multiple";
+  const defenseFocus = weeklyPlan?.defenseFocus || "stay-multiple";
+  const manRate = clamp(
+    0.22 +
+      (blitzRate - 1) * 0.24 +
+      aggressionDelta * 0.34 +
+      (defenseFocus === "pressure-pocket" ? 0.05 : 0) +
+      (defenseFocus === "flood-coverage" ? -0.04 : 0) +
+      (defenseStyle === "contain-shell" ? -0.03 : 0),
+    0.11,
+    0.38
+  );
+  const middleOpenRate = clamp(
+    0.48 -
+      aggression * 0.08 -
+      (blitzRate - 1) * 0.12 +
+      (defenseFocus === "flood-coverage" ? 0.12 : 0) +
+      (defenseFocus === "load-box" ? -0.1 : 0) +
+      (defenseStyle === "contain-shell" ? 0.08 : 0),
+    0.28,
+    0.72
+  );
+  return {
+    manRate,
+    zoneRate: Number((1 - manRate).toFixed(3)),
+    middleOpenRate,
+    middleClosedRate: Number((1 - middleOpenRate).toFixed(3)),
+    primary: manRate >= 0.26 ? "man" : "zone",
+    shell: middleOpenRate >= 0.5 ? "split-safety" : "single-high"
+  };
+}
+
+function choosePassDepthBucket(rng, receiver, qb, routeFamily = "breaker", coverageShell = null) {
   const receiverPosition = receiver?.position || "WR";
   const routeSkill = mean([
     rating(receiver, "routeRunning", rating(receiver, "catching")),
@@ -198,34 +292,130 @@ function choosePassDepthBucket(rng, receiver, qb) {
     rating(receiver, "speed")
   ]);
   const qbArm = mean([rating(qb, "throwPower"), rating(qb, "throwOnRun"), rating(qb, "awareness")]);
+  const shell = coverageShell || { middleOpenRate: 0.5, middleClosedRate: 0.5 };
+  const profile = routeProfile(routeFamily);
   const weights = {
-    short: receiverPosition === "RB" ? 0.56 : receiverPosition === "TE" ? 0.36 : 0.28,
-    medium: receiverPosition === "RB" ? 0.32 : receiverPosition === "TE" ? 0.46 : 0.5,
-    deep: receiverPosition === "RB" ? 0.12 : receiverPosition === "TE" ? 0.18 : 0.22
+    short: Number(profile.depthWeights.short || 0.2) + (receiverPosition === "RB" ? 0.08 : 0),
+    medium: Number(profile.depthWeights.medium || 0.6) + (receiverPosition === "TE" ? 0.04 : 0),
+    deep: Number(profile.depthWeights.deep || 0.2)
   };
 
   weights.short += clamp((72 - routeSkill) / 60 + (73 - qbArm) / 90, -0.1, 0.18);
   weights.deep += clamp((routeSkill - 72) / 52 + (qbArm - 74) / 42, -0.08, 0.2);
   weights.medium += receiverPosition === "TE" ? 0.02 : 0;
+  if (routeFamily === "seam") {
+    weights.medium += shell.middleOpenRate * 0.08;
+    weights.deep += shell.middleOpenRate * 0.05;
+  }
+  if (routeFamily === "vertical") {
+    weights.deep += shell.middleClosedRate * 0.06;
+  }
+  if (routeFamily === "quick" || routeFamily === "space") {
+    weights.short += 0.08;
+  }
 
   return rng.weightedPick(
     Object.fromEntries(Object.entries(weights).map(([key, value]) => [key, Math.max(0.05, Number(value || 0))]))
   );
 }
 
-function chooseCoverageDefender(rng, defenseContext, bucket = "medium", takeaway = false) {
+function chooseRouteFamily(rng, receiver, offenseContext, defenseContext, coverageShell, qb) {
+  const position = receiver?.position || "WR";
+  const routeSkill = mean([
+    rating(receiver, "routeRunning", rating(receiver, "catching")),
+    rating(receiver, "release", rating(receiver, "catching"))
+  ]);
+  const burstSkill = mean([rating(receiver, "speed"), rating(receiver, "release", rating(receiver, "speed"))]);
+  const shortAreaSkill = mean([rating(receiver, "catching"), rating(receiver, "agility", rating(receiver, "speed"))]);
+  const yacSkill = mean([
+    rating(receiver, "elusiveness", rating(receiver, "agility", rating(receiver, "speed"))),
+    rating(receiver, "agility", rating(receiver, "speed"))
+  ]);
+  const qbArm = mean([rating(qb, "throwPower"), rating(qb, "throwAccuracyDeep"), rating(qb, "awareness")]);
+  const deepShotRate = Number(offenseContext.team?.coaching?.tendencies?.deepShotRate || 1);
+  const offenseFocus = offenseContext.weeklyPlan?.focus || "balanced-script";
+  const defenseFocus = defenseContext.weeklyPlan?.defenseFocus || "stay-multiple";
+  const weights =
+    position === "RB"
+      ? { quick: 0.18, breaker: 0.08, seam: 0.03, vertical: 0.03, space: 0.68 }
+      : position === "TE"
+        ? { quick: 0.22, breaker: 0.2, seam: 0.32, vertical: 0.06, space: 0.2 }
+        : { quick: 0.18, breaker: 0.32, seam: 0.12, vertical: 0.22, space: 0.16 };
+
+  weights.quick += clamp((shortAreaSkill - 70) / 180, -0.04, 0.08) + coverageShell.zoneRate * 0.08;
+  weights.breaker += clamp((routeSkill - 70) / 150, -0.04, 0.09) + coverageShell.manRate * 0.1;
+  weights.seam +=
+    (position === "TE" ? 0.08 : 0) + clamp((routeSkill + burstSkill - 140) / 220, -0.03, 0.08) + coverageShell.middleOpenRate * 0.08;
+  weights.vertical +=
+    clamp((burstSkill - 70) / 145, -0.03, 0.1) +
+    clamp((qbArm - 72) / 180, -0.03, 0.07) +
+    (deepShotRate - 1) * 0.14 +
+    coverageShell.middleClosedRate * 0.03;
+  weights.space += clamp((yacSkill - 70) / 150, -0.03, 0.08) + coverageShell.zoneRate * 0.06;
+
+  if (offenseFocus === "attack-secondary") {
+    weights.vertical += 0.08;
+    weights.breaker += 0.04;
+  } else if (offenseFocus === "protect-front") {
+    weights.quick += 0.08;
+    weights.space += 0.06;
+  } else if (offenseFocus === "tempo-script") {
+    weights.breaker += 0.05;
+    weights.quick += 0.03;
+  }
+
+  if (defenseFocus === "pressure-pocket") {
+    weights.quick += 0.06;
+    weights.space += 0.04;
+  } else if (defenseFocus === "load-box") {
+    weights.seam += 0.06;
+    weights.vertical += 0.03;
+  } else if (defenseFocus === "flood-coverage") {
+    weights.quick += 0.04;
+    weights.breaker -= 0.02;
+    weights.vertical -= 0.02;
+  }
+
+  return rng.weightedPick(
+    Object.fromEntries(Object.entries(weights).map(([key, value]) => [key, Math.max(0.04, Number(value || 0))]))
+  );
+}
+
+function choosePassTargetProfile(rng, offenseContext, defenseContext, qb) {
+  const receiver = chooseReceiver(rng, offenseContext);
+  const coverageShell = defenseContext.coverageShell || buildCoverageShell(defenseContext.team, defenseContext.weeklyPlan);
+  const routeFamily = chooseRouteFamily(rng, receiver, offenseContext, defenseContext, coverageShell, qb);
+  return {
+    receiver,
+    routeFamily,
+    depthBucket: choosePassDepthBucket(rng, receiver, qb, routeFamily, coverageShell),
+    coverageShell
+  };
+}
+
+function matchupCoverageRating(player, bucket = "medium", coverageShell = null) {
+  const shell = coverageShell || { manRate: 0.22, zoneRate: 0.78 };
+  const depth = coverageDepthRating(player?.ratings || {}, bucket);
+  const man = rating(player, "manCoverage", rating(player, "coverage"));
+  const zone = rating(player, "zoneCoverage", rating(player, "coverage"));
+  const awareness = rating(player, "awareness");
+  return depth * 0.6 + man * shell.manRate * 0.22 + zone * shell.zoneRate * 0.22 + awareness * 0.08;
+}
+
+function chooseCoverageDefender(rng, defenseContext, bucket = "medium", coverageShell = null, takeaway = false) {
+  const shell = coverageShell || defenseContext.coverageShell || buildCoverageShell(defenseContext.team, defenseContext.weeklyPlan);
   const dbBase = bucket === "deep" ? 1.32 : bucket === "short" ? 1.04 : 1.18;
   const lbBase = bucket === "short" ? 0.56 : bucket === "medium" ? 0.4 : 0.18;
   return chooseWeightedEntity(rng, [
     ...defenseContext.dbRotation.map((row) => {
-      const coverageBoost = clamp(coverageDepthRating(row.player?.ratings || {}, bucket) / 70, 0.72, 1.45);
+      const coverageBoost = clamp(matchupCoverageRating(row.player, bucket, shell) / 70, 0.72, 1.45);
       const takeawayBoost = takeaway
         ? clamp((rating(row.player, "playRecognition") + rating(row.player, "awareness")) / 140, 0.86, 1.35)
         : 1;
       return { player: row.player, weight: row.usageWeight * dbBase * coverageBoost * takeawayBoost };
     }),
     ...defenseContext.lbRotation.map((row) => {
-      const coverageBoost = clamp(coverageDepthRating(row.player?.ratings || {}, bucket) / 70, 0.68, 1.25);
+      const coverageBoost = clamp(matchupCoverageRating(row.player, bucket, shell) / 70, 0.68, 1.25);
       const takeawayBoost = takeaway
         ? clamp((rating(row.player, "playRecognition") + rating(row.player, "awareness")) / 142, 0.82, 1.22)
         : 1;
@@ -415,7 +605,8 @@ function buildTeamContext(league, teamId, rng) {
     schemeFit,
     roleNames: DEPTH_CHART_ROLE_NAMES,
     usageProfile,
-    unitRatings
+    unitRatings,
+    coverageShell: buildCoverageShell(team, weeklyPlan)
   };
 }
 
@@ -452,9 +643,9 @@ function recordTeamTackle(deltaMap, rng, defenseContext) {
   return tackler;
 }
 
-function maybeRecordPassDefended(deltaMap, rng, defenseContext, bucket = "medium", chance = 0.62) {
+function maybeRecordPassDefended(deltaMap, rng, defenseContext, bucket = "medium", coverageShell = null, chance = 0.62) {
   if (!rng.chance(chance)) return;
-  const defender = chooseCoverageDefender(rng, defenseContext, bucket, false);
+  const defender = chooseCoverageDefender(rng, defenseContext, bucket, coverageShell, false);
   if (!defender) return;
   addDelta(deltaMap, defender.id, { defense: { passDefended: 1 } });
 }
@@ -521,10 +712,14 @@ function simulateDrive(offenseContext, defenseContext, rng, mode) {
         });
         continue;
       }
-      const receiver = chooseReceiver(rng, offenseContext);
-      const depthBucket = choosePassDepthBucket(rng, receiver, qb);
+      const targetProfile = choosePassTargetProfile(rng, offenseContext, defenseContext, qb);
+      const receiver = targetProfile.receiver;
+      const routeFamily = targetProfile.routeFamily;
+      const routeTraits = routeProfile(routeFamily);
+      const depthBucket = targetProfile.depthBucket;
       const depthProfile = PASS_DEPTH_PROFILES[depthBucket];
       const depthAccuracy = quarterbackDepthAccuracy(qb?.ratings, depthBucket);
+      const coverageShell = targetProfile.coverageShell;
       const depthCoverage =
         depthBucket === "short"
           ? defenseContext.unitRatings?.coverageShort || coverage
@@ -541,9 +736,15 @@ function simulateDrive(offenseContext, defenseContext, rng, mode) {
         rating(receiver, "release", rating(receiver, "catching")),
         rating(receiver, "speed")
       ]);
+      const routeModifier =
+        routeTraits.vsMan * coverageShell.manRate +
+        routeTraits.vsZone * coverageShell.zoneRate +
+        routeTraits.vsMiddleOpen * coverageShell.middleOpenRate +
+        routeTraits.vsMiddleClosed * coverageShell.middleClosedRate;
       const completionChance = clamp(
         0.44 +
           depthProfile.completionBase +
+          routeModifier +
           (depthAccuracy - 70) / 245 +
           (receiverHands - 70) / 420 +
           (receiverSeparation - depthCoverage) / 520 +
@@ -558,6 +759,7 @@ function simulateDrive(offenseContext, defenseContext, rng, mode) {
       if (rng.chance(completionChance)) {
         const airYards = clamp(
           rng.int(depthProfile.airYards[0], depthProfile.airYards[1]) +
+            Math.round(routeTraits.airYardsDelta || 0) +
             Math.round((qbArm - 70) / 7) +
             Math.round((receiverSeparation - 70) / 10) +
             Math.round((receiverSeparation - depthCoverage) / 16),
@@ -566,6 +768,7 @@ function simulateDrive(offenseContext, defenseContext, rng, mode) {
         );
         const yac = clamp(
           rng.int(depthProfile.yac[0], depthProfile.yac[1]) +
+            Math.round(routeTraits.yacBonus || 0) +
             Math.round((rating(receiver, "elusiveness", rating(receiver, "agility")) - tackling) / 10) +
             Math.round((rating(receiver, "speed") - 70) / 12),
           depthProfile.yac[0] - 1,
@@ -596,7 +799,11 @@ function simulateDrive(offenseContext, defenseContext, rng, mode) {
           targetId: receiver?.id || null,
           player: qb.name,
           target: receiver?.name || "receiver",
-          description: `${qb.name} hits ${receiver?.name || "receiver"} for ${yards} yards`
+          routeFamily,
+          depthBucket,
+          coveragePrimary: coverageShell.primary,
+          coverageShell: coverageShell.shell,
+          description: `${qb.name} hits ${receiver?.name || "receiver"} on a ${routeFamily} ${depthBucket} concept for ${yards} yards`
         });
       } else {
         const sackChance = clamp(
@@ -622,7 +829,7 @@ function simulateDrive(offenseContext, defenseContext, rng, mode) {
         if (rng.chance(intChance)) {
           turnover = true;
           turnoverType = "INT";
-          const defender = chooseCoverageDefender(rng, defenseContext, depthBucket, true);
+          const defender = chooseCoverageDefender(rng, defenseContext, depthBucket, coverageShell, true);
           addDelta(driveDeltas, qb.id, { passing: { int: 1 } });
           if (defender) {
             addDelta(driveDeltas, defender.id, { defense: { int: 1, passDefended: 1 } });
@@ -634,6 +841,10 @@ function simulateDrive(offenseContext, defenseContext, rng, mode) {
             targetId: defender?.id || null,
             player: qb.name,
             target: defender?.name || "defense",
+            routeFamily,
+            depthBucket,
+            coveragePrimary: coverageShell.primary,
+            coverageShell: coverageShell.shell,
             description: `${qb.name} is intercepted by ${defender?.name || "the defense"}`
           });
         } else if (rng.chance(sackChance)) {
@@ -660,13 +871,23 @@ function simulateDrive(offenseContext, defenseContext, rng, mode) {
           if (receiver) {
             addDelta(driveDeltas, receiver.id, { receiving: { targets: 1 } });
             const dropChance = clamp(
-              0.032 + (depthBucket === "deep" ? 0.018 : depthBucket === "medium" ? 0.008 : 0) - (receiverHands - 70) / 500,
+              0.032 +
+                (depthBucket === "deep" ? 0.018 : depthBucket === "medium" ? 0.008 : 0) +
+                (routeTraits.pbuDelta > 0 ? 0.004 : -0.002) -
+                (receiverHands - 70) / 500,
               0.01,
               0.08
             );
             if (rng.chance(dropChance)) addDelta(driveDeltas, receiver.id, { receiving: { drops: 1 } });
           }
-          maybeRecordPassDefended(driveDeltas, rng, defenseContext, depthBucket, depthProfile.pbuChance);
+          maybeRecordPassDefended(
+            driveDeltas,
+            rng,
+            defenseContext,
+            depthBucket,
+            coverageShell,
+            clamp(depthProfile.pbuChance + (routeTraits.pbuDelta || 0), 0.28, 0.9)
+          );
           addPlay({
             type: "incomplete",
             yards: 0,
@@ -674,7 +895,11 @@ function simulateDrive(offenseContext, defenseContext, rng, mode) {
             targetId: receiver?.id || null,
             player: qb.name,
             target: receiver?.name || "receiver",
-            description: `${qb.name} incomplete ${depthBucket} to ${receiver?.name || "receiver"}`
+            routeFamily,
+            depthBucket,
+            coveragePrimary: coverageShell.primary,
+            coverageShell: coverageShell.shell,
+            description: `${qb.name} incomplete ${depthBucket} to ${receiver?.name || "receiver"} on a ${routeFamily} concept`
           });
         }
       }
