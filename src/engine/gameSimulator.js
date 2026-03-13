@@ -1,5 +1,6 @@
 import { DEPTH_CHART_ROLE_NAMES, DRIVE_OUTCOMES, NFL_STRUCTURE } from "../config.js";
 import { createZeroedSeasonStats, mergeStats } from "../domain/playerFactory.js";
+import { quarterbackDepthAccuracy } from "../domain/ratings.js";
 import { clamp, mean } from "../utils/rng.js";
 import { getTeamPlayers } from "../domain/teamFactory.js";
 import { buildTeamUsageProfile, depthOrderedPlayers, resolveDepthChartRoomShares } from "./depthChartUsage.js";
@@ -151,6 +152,59 @@ function averageRatingFromPlayers(players, keys, fallback = 68) {
   const clean = (players || []).filter(Boolean);
   if (!clean.length) return fallback;
   return mean(clean.map((player) => mean(keys.map((key) => rating(player, key, fallback)))));
+}
+
+const PASS_DEPTH_PROFILES = {
+  short: {
+    completionBase: 0.1,
+    sackDelta: -0.02,
+    intDelta: -0.009,
+    pbuChance: 0.48,
+    airYards: [-1, 8],
+    yac: [0, 11],
+    maxCompletion: 0.84
+  },
+  medium: {
+    completionBase: 0,
+    sackDelta: 0.008,
+    intDelta: 0.002,
+    pbuChance: 0.62,
+    airYards: [7, 17],
+    yac: [-1, 8],
+    maxCompletion: 0.76
+  },
+  deep: {
+    completionBase: -0.13,
+    sackDelta: 0.03,
+    intDelta: 0.012,
+    pbuChance: 0.76,
+    airYards: [16, 33],
+    yac: [-2, 5],
+    maxCompletion: 0.61
+  }
+};
+
+function choosePassDepthBucket(rng, receiver, qb) {
+  const receiverPosition = receiver?.position || "WR";
+  const routeSkill = mean([
+    rating(receiver, "routeRunning", rating(receiver, "catching")),
+    rating(receiver, "release", rating(receiver, "catching")),
+    rating(receiver, "speed")
+  ]);
+  const qbArm = mean([rating(qb, "throwPower"), rating(qb, "throwOnRun"), rating(qb, "awareness")]);
+  const weights = {
+    short: receiverPosition === "RB" ? 0.56 : receiverPosition === "TE" ? 0.36 : 0.28,
+    medium: receiverPosition === "RB" ? 0.32 : receiverPosition === "TE" ? 0.46 : 0.5,
+    deep: receiverPosition === "RB" ? 0.12 : receiverPosition === "TE" ? 0.18 : 0.22
+  };
+
+  weights.short += clamp((72 - routeSkill) / 60 + (73 - qbArm) / 90, -0.1, 0.18);
+  weights.deep += clamp((routeSkill - 72) / 52 + (qbArm - 74) / 42, -0.08, 0.2);
+  weights.medium += receiverPosition === "TE" ? 0.02 : 0;
+
+  return rng.weightedPick(
+    Object.fromEntries(Object.entries(weights).map(([key, value]) => [key, Math.max(0.05, Number(value || 0))]))
+  );
 }
 
 const GAME_MISS_CHANCE_BY_POSITION = {
@@ -390,7 +444,6 @@ function simulateDrive(offenseContext, defenseContext, rng, mode) {
   let lastRunner = offenseContext.rb;
 
   const qb = offenseContext.qb;
-  const qbAccuracy = mean([rating(qb, "throwAccuracy"), rating(qb, "awareness"), rating(qb, "playRecognition")]);
   const qbArm = mean([rating(qb, "throwPower"), rating(qb, "throwOnRun"), rating(qb, "discipline")]);
   const linePass = offenseContext.unitRatings?.passBlocking || 70;
   const lineRun = offenseContext.unitRatings?.runBlocking || 70;
@@ -440,39 +493,49 @@ function simulateDrive(offenseContext, defenseContext, rng, mode) {
         });
         continue;
       }
+      const receiver = chooseReceiver(rng, offenseContext);
+      const depthBucket = choosePassDepthBucket(rng, receiver, qb);
+      const depthProfile = PASS_DEPTH_PROFILES[depthBucket];
+      const depthAccuracy = quarterbackDepthAccuracy(qb?.ratings, depthBucket);
+      const receiverHands = mean([
+        rating(receiver, "catching"),
+        rating(receiver, "spectacularCatch", rating(receiver, "catching")),
+        rating(receiver, "discipline", rating(receiver, "catching"))
+      ]);
+      const receiverSeparation = mean([
+        rating(receiver, "routeRunning", rating(receiver, "catching")),
+        rating(receiver, "release", rating(receiver, "catching")),
+        rating(receiver, "speed")
+      ]);
       const completionChance = clamp(
-        0.47 +
-          (qbAccuracy - 70) / 240 +
+        0.44 +
+          depthProfile.completionBase +
+          (depthAccuracy - 70) / 245 +
+          (receiverHands - 70) / 420 +
+          (receiverSeparation - coverage) / 520 +
           (linePass - passRush) / 360 +
-          (offenseContext.team.offenseRating - defenseContext.team.defenseRating) / 420 -
-          (coverage - 70) / 340,
-        0.38,
-        0.79
+          (offenseContext.team.offenseRating - defenseContext.team.defenseRating) / 430 -
+          (coverage - 70) / 370,
+        depthBucket === "deep" ? 0.24 : depthBucket === "medium" ? 0.42 : 0.52,
+        depthProfile.maxCompletion
       );
       addDelta(driveDeltas, qb.id, { passing: { att: 1 } });
 
       if (rng.chance(completionChance)) {
-        const receiver = chooseReceiver(rng, offenseContext);
-        const receiverSkill = mean([
-          rating(receiver, "catching"),
-          rating(receiver, "routeRunning"),
-          rating(receiver, "release"),
-          rating(receiver, "spectacularCatch")
-        ]);
         const airYards = clamp(
-          rng.int(0, 13) +
+          rng.int(depthProfile.airYards[0], depthProfile.airYards[1]) +
             Math.round((qbArm - 70) / 7) +
-            Math.round((receiverSkill - 70) / 9) +
-            Math.round((receiverSkill - coverage) / 16),
-          0,
-          32
+            Math.round((receiverSeparation - 70) / 10) +
+            Math.round((receiverSeparation - coverage) / 16),
+          depthProfile.airYards[0],
+          depthProfile.airYards[1] + (depthBucket === "deep" ? 9 : 5)
         );
         const yac = clamp(
-          rng.int(-1, 9) +
+          rng.int(depthProfile.yac[0], depthProfile.yac[1]) +
             Math.round((rating(receiver, "elusiveness", rating(receiver, "agility")) - tackling) / 10) +
-            Math.round((rating(receiver, "speed") - 70) / 10),
-          -1,
-          24
+            Math.round((rating(receiver, "speed") - 70) / 12),
+          depthProfile.yac[0] - 1,
+          depthBucket === "short" ? 24 : depthBucket === "medium" ? 18 : 10
         );
         const yards = Math.max(0, airYards + yac);
         const firstDown = yards >= 10 ? 1 : 0;
@@ -499,13 +562,14 @@ function simulateDrive(offenseContext, defenseContext, rng, mode) {
           targetId: receiver?.id || null,
           player: qb.name,
           target: receiver?.name || "receiver",
-          description: `${qb.name} to ${receiver?.name || "receiver"} for ${yards} yards`
+          description: `${qb.name} hits ${receiver?.name || "receiver"} for ${yards} yards`
         });
       } else {
         const sackChance = clamp(
           0.07 +
             (passRush - linePass) / 310 +
             (defenseContext.team.defenseRating - offenseContext.team.offenseRating) / 520 +
+            depthProfile.sackDelta +
             (defenseContext.weeklyPlan?.aggressionDelta || 0) * 0.08 -
             (offenseContext.weeklyPlan?.disciplineBoost || 0) * 0.008,
           0.05,
@@ -513,8 +577,10 @@ function simulateDrive(offenseContext, defenseContext, rng, mode) {
         );
         const intChance = clamp(
           0.018 +
-            (coverage - qbAccuracy) / 360 +
+            (coverage - depthAccuracy) / 360 +
             (defenseContext.team.defenseRating - qb.overall) / 640 -
+            completionChance * 0.015 +
+            depthProfile.intDelta -
             (offenseContext.weeklyPlan?.disciplineBoost || 0) * 0.003,
           0.01,
           0.07
@@ -560,12 +626,16 @@ function simulateDrive(offenseContext, defenseContext, rng, mode) {
             description: `${sacker?.name || "Defense"} sacks ${qb.name} for ${sackYards} yards`
           });
         } else {
-          const receiver = chooseReceiver(rng, offenseContext);
           if (receiver) {
             addDelta(driveDeltas, receiver.id, { receiving: { targets: 1 } });
-            if (rng.chance(0.035)) addDelta(driveDeltas, receiver.id, { receiving: { drops: 1 } });
+            const dropChance = clamp(
+              0.032 + (depthBucket === "deep" ? 0.018 : depthBucket === "medium" ? 0.008 : 0) - (receiverHands - 70) / 500,
+              0.01,
+              0.08
+            );
+            if (rng.chance(dropChance)) addDelta(driveDeltas, receiver.id, { receiving: { drops: 1 } });
           }
-          maybeRecordPassDefended(driveDeltas, rng, defenseContext);
+          maybeRecordPassDefended(driveDeltas, rng, defenseContext, depthProfile.pbuChance);
           addPlay({
             type: "incomplete",
             yards: 0,
@@ -573,7 +643,7 @@ function simulateDrive(offenseContext, defenseContext, rng, mode) {
             targetId: receiver?.id || null,
             player: qb.name,
             target: receiver?.name || "receiver",
-            description: `${qb.name} incomplete to ${receiver?.name || "receiver"}`
+            description: `${qb.name} incomplete ${depthBucket} to ${receiver?.name || "receiver"}`
           });
         }
       }

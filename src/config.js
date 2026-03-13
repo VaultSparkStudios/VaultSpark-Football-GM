@@ -70,6 +70,9 @@ export const PLAYER_ATTRIBUTE_KEYS = {
   skill: [
     "throwPower",
     "throwAccuracy",
+    "throwAccuracyShort",
+    "throwAccuracyMedium",
+    "throwAccuracyDeep",
     "throwOnRun",
     "catching",
     "carrying",
@@ -266,3 +269,4 @@ export const OFFENSIVE_PERSONNEL_PACKAGES = {
   "13": { label: "13 Personnel", rb: 1, te: 3, wr: 1, rate: 0.05 },
   "20": { label: "20 Personnel", rb: 2, te: 0, wr: 3, rate: 0.03 }
 };
+

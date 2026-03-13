@@ -4,7 +4,7 @@ import {
   PLAYER_ATTRIBUTE_KEYS,
   ROSTER_TEMPLATE
 } from "../config.js";
-import { calculatePositionOverall } from "./ratings.js";
+import { calculatePositionOverall, ensureQuarterbackDepthRatings } from "./ratings.js";
 import { buildContract } from "./contracts.js";
 import { clamp } from "../utils/rng.js";
 
@@ -46,7 +46,7 @@ const LAST_NAMES = [
 ];
 
 const POSITION_ATTRIBUTE_BIASES = {
-  QB: { throwPower: 18, throwAccuracy: 18, throwOnRun: 10, awareness: 10, playRecognition: 8 },
+  QB: { throwPower: 18, throwAccuracy: 16, throwAccuracyShort: 18, throwAccuracyMedium: 16, throwAccuracyDeep: 12, throwOnRun: 10, awareness: 10, playRecognition: 8 },
   RB: { speed: 12, acceleration: 12, agility: 12, carrying: 12, breakTackle: 10, trucking: 8, elusiveness: 10, catching: 6 },
   WR: { speed: 14, acceleration: 14, agility: 10, catching: 12, routeRunning: 12, release: 10, spectacularCatch: 8, jumping: 8 },
   TE: { catching: 10, strength: 8, routeRunning: 8, release: 6, spectacularCatch: 6, runBlocking: 10, passBlocking: 6 },
@@ -211,6 +211,7 @@ export function createSyntheticPlayer({ teamId, position, year, rng, draft = fal
   const devTrait = randomTrait(rng);
   const potential = randomPotential(devTrait, rng);
   const ratings = randomAttributeBase(position, rng);
+  if (position === "QB") ensureQuarterbackDepthRatings(ratings);
   const overall = calculatePositionOverall(position, ratings);
   const age = draft ? rng.int(21, 23) : rng.int(22, 33);
   const id = `P${year}-${teamId}-${position}-${Math.floor(rng.next() * 1e8)}`;
@@ -311,3 +312,4 @@ export function mergeStats(into, add) {
   }
   return into;
 }
+

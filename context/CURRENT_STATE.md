@@ -45,12 +45,29 @@ Build status:
 - The stats benchmark copy now includes approximate per-game equivalents alongside season totals so position filters are easier to interpret in the UI
 - The career realism profile now applies a QB games-started qualifier in addition to passing volume so the starter-weighted career verification no longer averages in long-tenure low-start backups
 - Backend image tags now normalize the GitHub owner name to lowercase before pushing to GHCR, fixing the `repository name must be lowercase` Actions failure on `Deploy Backend Runtime`
+- QB evaluation and simulation now use depth-based passing accuracy:
+  - generated/imported QBs carry `throwAccuracyShort`, `throwAccuracyMedium`, and `throwAccuracyDeep`
+  - QB overall/scheme-fit logic now reads those ratings instead of only a single broad passing-accuracy number
+  - live pass resolution now chooses short/intermediate/deep targets and applies bucket-specific completion, sack, breakup, and interception pressure
+- PFR imports now derive QB depth ratings from passing volume, completion rate, and yards per attempt so productive modern passers no longer import as low-end backups
 - Challenge enforcement now blocks user free-agent actions in `no-free-agency` mode and blocks trades that would deliver top-10 picks to the controlled team in `no-top-10-picks` mode
 - That enforcement now reaches the remaining obvious user acquisition paths too:
   - waiver claims are blocked in `no-free-agency`
   - force-sign retirement overrides are blocked in `no-free-agency`
   - user top-10 draft selections are blocked in `no-top-10-picks`, and CPU draft progression no longer stalls on those picks
 - Focused validation passed for:
+  - `node --check src/config.js`
+  - `node --check src/domain/ratings.js`
+  - `node --check src/domain/playerFactory.js`
+  - `node --check src/data/pfrAdapter.js`
+  - `node --check src/runtime/applyLeagueSetup.js`
+  - `node --check src/runtime/GameSession.js`
+  - `node --check src/engine/gameSimulator.js`
+  - `node --check test/quarterback-depth-ratings.test.js`
+  - `node --test --test-isolation=none test/quarterback-depth-ratings.test.js`
+  - `node --test --test-isolation=none test/stats-regression.test.js`
+  - `node --test --test-isolation=none test/ratings-regression.test.js`
+  - `npm.cmd run build:pages`
   - `node --check public/app.js`
   - `node --check public/lib/api/createApiClient.js`
   - `node --check public/setup.js`
@@ -73,7 +90,7 @@ Build status:
 
 Current priorities:
 1. Use the new setup diagnostics to confirm whether any remaining setup/main-menu latency still needs another trim after the lazy browser bootstrap
-2. Compare the current PFR-derived starter baselines against refreshed 2025 NFL/PFF data and decide whether a new generated realism profile is enough or whether the simulator now needs deeper route-depth/coverage subratings
+2. Extend the new QB depth-rating pass into any remaining coverage/targeting gaps only if the refreshed NFL/PFF spot checks still show per-position drift after calibration
 3. Verify the next GitHub push clears both `CI` and `Deploy Backend Runtime` now that the test regression and GHCR tag casing are fixed
 4. Feed the new world-state deeper into any remaining owner expectation loops and transaction AI edges instead of stopping at the current trade/FA hooks
 5. Extend the new benchmark/qualification hint pattern anywhere else the UI compares all-player data to starter-qualified or team-level baselines
@@ -82,3 +99,4 @@ Known issues:
 - The Pages artifact remains client-only unless `GAME_SERVICE_ORIGIN` or `API_DOMAIN` is configured and the separate backend/runtime rollout is live
 - Challenge restrictions are much more mechanical now, but there may still be edge-case user acquisition paths worth auditing later
 - The unrelated realism/runtime work was parked in a local stash and is not yet reconciled back into the branch
+- Full `npm.cmd test` did not finish within the local command timeout window during the QB depth-rating pass; targeted stats/ratings regressions and `build:pages` completed successfully

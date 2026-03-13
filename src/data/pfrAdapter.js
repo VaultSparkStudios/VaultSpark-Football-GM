@@ -1,6 +1,6 @@
 import { DEVELOPMENT_TRAITS } from "../config.js";
 import { buildContract } from "../domain/contracts.js";
-import { calculatePositionOverall } from "../domain/ratings.js";
+import { calculatePositionOverall, ensureQuarterbackDepthRatings } from "../domain/ratings.js";
 import { clamp } from "../utils/rng.js";
 
 const POSITION_MAP = {
@@ -30,28 +30,64 @@ function toPosition(rawPos) {
 
 function deriveRatingsFromPfr(raw, rng) {
   const passYds = Number(raw.pass_yds || raw.passing_yards || 0);
+  const passAtt = Number(raw.pass_att || raw.passing_att || raw.pass_attempts || 0);
+  const passCmp = Number(raw.pass_cmp || raw.passing_cmp || raw.pass_completions || 0);
   const rushYds = Number(raw.rush_yds || raw.rushing_yards || 0);
   const recYds = Number(raw.rec_yds || raw.receiving_yards || 0);
   const tackles = Number(raw.tackles || 0);
   const sacks = Number(raw.sacks || 0);
   const ints = Number(raw.interceptions || raw.def_int || 0);
+  const completionPct = passAtt > 0 ? passCmp / passAtt : 0;
+  const yardsPerAttempt = passAtt > 0 ? passYds / passAtt : 0;
 
-  return {
+  const ratings = {
     speed: clamp(58 + Math.floor(recYds / 220) + rng.int(-6, 6), 45, 98),
     strength: clamp(58 + Math.floor((tackles + sacks * 4) / 26) + rng.int(-6, 6), 45, 98),
     agility: clamp(58 + Math.floor((recYds + rushYds) / 280) + rng.int(-5, 6), 45, 98),
     acceleration: clamp(58 + Math.floor((recYds + rushYds) / 320) + rng.int(-5, 5), 45, 98),
-    throwPower: clamp(58 + Math.floor(passYds / 260) + rng.int(-6, 8), 45, 99),
-    throwAccuracy: clamp(58 + Math.floor(passYds / 340) + rng.int(-7, 8), 45, 99),
+    throwPower: clamp(
+      54 + Math.floor(passYds / 230) + Math.round((yardsPerAttempt - 6.4) * 3.5) + rng.int(-5, 7),
+      45,
+      99
+    ),
+    throwAccuracy: clamp(
+      55 + Math.floor(passYds / 310) + Math.round((completionPct - 0.58) * 95) + rng.int(-5, 6),
+      45,
+      99
+    ),
+    throwAccuracyShort: clamp(
+      60 + Math.floor(passYds / 400) + Math.round((completionPct - 0.63) * 110) + rng.int(-4, 5),
+      45,
+      99
+    ),
+    throwAccuracyMedium: clamp(
+      56 +
+        Math.floor(passYds / 380) +
+        Math.round((completionPct - 0.6) * 55) +
+        Math.round((yardsPerAttempt - 6.8) * 7) +
+        rng.int(-4, 5),
+      42,
+      99
+    ),
+    throwAccuracyDeep: clamp(
+      53 + Math.floor(passYds / 560) + Math.round((yardsPerAttempt - 7.1) * 11) + rng.int(-5, 6),
+      40,
+      99
+    ),
     catching: clamp(58 + Math.floor(recYds / 250) + rng.int(-7, 7), 45, 99),
     passBlocking: clamp(58 + rng.int(-8, 10), 40, 95),
     runBlocking: clamp(58 + rng.int(-8, 10), 40, 95),
     tackle: clamp(58 + Math.floor(tackles / 28) + rng.int(-6, 6), 45, 98),
     coverage: clamp(58 + Math.floor(ints * 3) + rng.int(-7, 7), 40, 98),
-    awareness: clamp(60 + Math.floor((passYds + recYds + tackles * 8) / 900) + rng.int(-6, 7), 45, 98),
-    playRecognition: clamp(60 + Math.floor((ints * 10 + sacks * 8) / 45) + rng.int(-6, 6), 45, 98),
+    awareness: clamp(
+      60 + Math.floor((passYds + recYds + tackles * 8) / 760) + Math.floor(passAtt / 210) + rng.int(-6, 7),
+      45,
+      98
+    ),
+    playRecognition: clamp(60 + Math.floor((ints * 10 + sacks * 8 + passCmp) / 55) + rng.int(-6, 6), 45, 98),
     discipline: clamp(60 + rng.int(-10, 12), 45, 98)
   };
+  return ratings;
 }
 
 function inferTraitAndPotential(overall, rng) {
@@ -94,6 +130,7 @@ export function normalizePfrPlayers(rawPlayers, rng, year) {
       const age = clamp(readNumber(raw, rng.int(22, 31), "age"), 21, 41);
       const experience = Math.max(0, age - 21);
       const ratings = deriveRatingsFromPfr(raw, rng);
+      if (position === "QB") ensureQuarterbackDepthRatings(ratings);
       const overall = calculatePositionOverall(position, ratings);
       const { key, potential } = inferTraitAndPotential(overall, rng);
 
@@ -144,3 +181,4 @@ export function normalizePfrPlayers(rawPlayers, rng, year) {
     })
     .filter((p) => p.position);
 }
+

@@ -3,6 +3,12 @@
 Last updated: 2026-03-12
 
 What was completed:
+- Added a first pass of depth-based QB passing ratings and live pass resolution:
+  - generated/imported QBs now carry `throwAccuracyShort`, `throwAccuracyMedium`, and `throwAccuracyDeep`
+  - QB overall, development focus, scheme-fit, and setup-penalty paths now account for those ratings
+  - the game simulator now picks short/intermediate/deep pass buckets and applies bucket-specific completion, YAC, breakup, sack, and interception behavior
+- Tuned PFR QB imports so productive modern passers derive more realistic depth-accuracy/awareness values instead of landing as low-end backups
+- Added a regression that verifies both generated and imported QBs have the new depth ratings
 - Fixed the broken regular-season player stats path:
   - season realism calibration now updates the `regular` split that the stats UI and player profile views read
   - aggregate season totals and career totals are rebuilt from regular/playoff splits after calibration, so verification snapshots and table views no longer disagree
@@ -63,6 +69,18 @@ What was completed:
   - added a regression that checks starter-qualified season averages against weighted position baselines
 - Added a filter-aware starter-qualified benchmark hint to the stats tab so users can tell when they are comparing against position-specific regular-season starter baselines versus broader all-player/team views
 - Revalidated the current gameplay/client batch with:
+  - `node --check src/config.js`
+  - `node --check src/domain/ratings.js`
+  - `node --check src/domain/playerFactory.js`
+  - `node --check src/data/pfrAdapter.js`
+  - `node --check src/runtime/applyLeagueSetup.js`
+  - `node --check src/runtime/GameSession.js`
+  - `node --check src/engine/gameSimulator.js`
+  - `node --check test/quarterback-depth-ratings.test.js`
+  - `node --test --test-isolation=none test/quarterback-depth-ratings.test.js`
+  - `node --test --test-isolation=none test/stats-regression.test.js`
+  - `node --test --test-isolation=none test/ratings-regression.test.js`
+  - `npm.cmd run build:pages`
   - `node --check src/stats/realismCalibrator.js`
   - `node --check test/stats-regression.test.js`
   - `node --check public/app.js`
@@ -91,10 +109,11 @@ What was completed:
 What is mid-flight:
 - The unrelated realism/runtime work is still parked in a local stash and has not been reincorporated
 - Challenge restrictions are much more mechanical now, though edge-case acquisition paths may still be worth auditing later
+- Full `npm.cmd test` exceeded the local command timeout window during the QB depth-rating pass, so the focused suites above are the confirmed validation set for this session
 
 What to do next:
-1. Compare the current PFR-derived starter baselines against refreshed 2025 NFL/PFF data and decide whether a regenerated realism profile is enough or whether the simulator needs deeper passing/coverage subratings
-2. Push the regular-season stats fix and confirm GitHub stays green on the next run
+1. Validate the new QB depth-rating pass against refreshed 2025 NFL/PFF benchmarks and decide whether DB/LB coverage also needs bucketed subratings
+2. Push the QB depth-rating pass and confirm GitHub stays green on the next run
 3. Use the new setup diagnostics to decide whether any remaining setup/main-menu latency still needs another trim after the lazy browser bootstrap
 4. Feed the new world-state deeper into any remaining owner expectation loops and transaction AI edges
 5. Extend the new benchmark/qualification hint pattern to any other views that still imply apples-to-apples NFL averages without saying so

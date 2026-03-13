@@ -98,7 +98,11 @@ export function applyInitialLeagueSetup(session, teamId = session?.controlledTea
       .forEach((player) => {
         player.overall = Math.max(45, (player.overall || 60) - archetype.qbOverallPenalty);
         if (player.ratings) {
-          player.ratings.throwAccuracy = Math.max(40, (player.ratings.throwAccuracy || 60) - Math.round(archetype.qbOverallPenalty * 0.8));
+          const accuracyPenalty = Math.round(archetype.qbOverallPenalty * 0.8);
+          player.ratings.throwAccuracy = Math.max(40, (player.ratings.throwAccuracy || 60) - accuracyPenalty);
+          player.ratings.throwAccuracyShort = Math.max(40, (player.ratings.throwAccuracyShort || player.ratings.throwAccuracy || 60) - Math.round(accuracyPenalty * 0.9));
+          player.ratings.throwAccuracyMedium = Math.max(40, (player.ratings.throwAccuracyMedium || player.ratings.throwAccuracy || 60) - accuracyPenalty);
+          player.ratings.throwAccuracyDeep = Math.max(40, (player.ratings.throwAccuracyDeep || player.ratings.throwAccuracy || 60) - Math.round(accuracyPenalty * 1.1));
           player.ratings.awareness = Math.max(40, (player.ratings.awareness || 60) - Math.round(archetype.qbOverallPenalty * 0.7));
         }
       });
@@ -135,3 +139,4 @@ export function applyInitialLeagueSetup(session, teamId = session?.controlledTea
   recalculateAllTeamRatings(session.league);
   return session.league.startScenario;
 }
+

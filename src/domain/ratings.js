@@ -3,14 +3,16 @@ import { clamp, mean } from "../utils/rng.js";
 
 const POSITION_FORMULAS = {
   QB: {
-    throwPower: 0.24,
-    throwAccuracy: 0.24,
-    throwOnRun: 0.1,
-    awareness: 0.13,
-    playRecognition: 0.11,
-    discipline: 0.06,
-    speed: 0.06,
-    agility: 0.06
+    throwPower: 0.2,
+    throwAccuracyShort: 0.18,
+    throwAccuracyMedium: 0.16,
+    throwAccuracyDeep: 0.12,
+    throwOnRun: 0.09,
+    awareness: 0.1,
+    playRecognition: 0.09,
+    discipline: 0.03,
+    speed: 0.02,
+    agility: 0.01
   },
   RB: {
     speed: 0.16,
@@ -109,16 +111,44 @@ const POSITION_FORMULAS = {
   }
 };
 
+function derivedQuarterbackDepthRatings(ratings = {}) {
+  const base = Number(ratings.throwAccuracy ?? 60);
+  const power = Number(ratings.throwPower ?? base);
+  const awareness = Number(ratings.awareness ?? base);
+  const onRun = Number(ratings.throwOnRun ?? base);
+  return {
+    throwAccuracyShort: clamp(Math.round(base * 0.72 + awareness * 0.22 + 6), 40, 99),
+    throwAccuracyMedium: clamp(Math.round(base * 0.76 + power * 0.08 + awareness * 0.12 + 2), 40, 99),
+    throwAccuracyDeep: clamp(Math.round(base * 0.58 + power * 0.24 + onRun * 0.1 + awareness * 0.08 - 3), 40, 99)
+  };
+}
+
+export function ensureQuarterbackDepthRatings(ratings = {}) {
+  const derived = derivedQuarterbackDepthRatings(ratings);
+  if (!Number.isFinite(Number(ratings.throwAccuracyShort))) ratings.throwAccuracyShort = derived.throwAccuracyShort;
+  if (!Number.isFinite(Number(ratings.throwAccuracyMedium))) ratings.throwAccuracyMedium = derived.throwAccuracyMedium;
+  if (!Number.isFinite(Number(ratings.throwAccuracyDeep))) ratings.throwAccuracyDeep = derived.throwAccuracyDeep;
+  return ratings;
+}
+
+export function quarterbackDepthAccuracy(ratings = {}, bucket = "medium") {
+  const ensured = ensureQuarterbackDepthRatings({ ...ratings });
+  if (bucket === "short") return ensured.throwAccuracyShort;
+  if (bucket === "deep") return ensured.throwAccuracyDeep;
+  return ensured.throwAccuracyMedium;
+}
+
 export function calculatePositionOverall(position, ratings) {
   const formula = POSITION_FORMULAS[position];
   if (!formula) return 60;
+  const resolvedRatings = position === "QB" ? ensureQuarterbackDepthRatings({ ...(ratings || {}) }) : ratings || {};
   const weightTotal = Math.max(
     0.0001,
     Object.values(formula).reduce((sum, weight) => sum + Number(weight || 0), 0)
   );
   const score =
     Object.entries(formula).reduce((total, [key, weight]) => {
-    return total + (ratings[key] ?? 60) * weight;
+      return total + (resolvedRatings[key] ?? 60) * weight;
     }, 0) / weightTotal;
   return Math.round(clamp(score, 40, 99));
 }

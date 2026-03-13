@@ -325,7 +325,7 @@ function developmentFocusRatings(team, player) {
   if (player.position === "QB") {
     return offenseStyle === "ground-control"
       ? ["awareness", "throwOnRun", "playRecognition", "discipline"]
-      : ["throwAccuracy", "throwPower", "awareness", "playRecognition"];
+      : ["throwAccuracyShort", "throwAccuracyMedium", "throwAccuracyDeep", "throwPower", "awareness"];
   }
   if (player.position === "RB") {
     return offenseStyle === "ground-control"
@@ -560,7 +560,7 @@ function buildWeeklyMatchPlan(team, roster = [], opponent = null, opponentRoster
   }
 
   const ownPassGame =
-    averageTopPlayers(roster, "QB", 1, (player) => averagePlayerRating(player, ["throwAccuracy", "throwPower", "awareness"], player.overall || 70)) *
+    averageTopPlayers(roster, "QB", 1, (player) => averagePlayerRating(player, ["throwAccuracyShort", "throwAccuracyMedium", "throwAccuracyDeep", "throwPower"], player.overall || 70)) *
       0.46 +
     averageTopPlayers(roster, "WR", 3, (player) => averagePlayerRating(player, ["catching", "routeRunning", "speed"], player.overall || 70)) *
       0.32 +
@@ -613,7 +613,7 @@ function buildWeeklyMatchPlan(team, roster = [], opponent = null, opponentRoster
       opponentRoster,
       "QB",
       1,
-      (player) => averagePlayerRating(player, ["throwAccuracy", "throwPower", "awareness"], player.overall || 70)
+      (player) => averagePlayerRating(player, ["throwAccuracyShort", "throwAccuracyMedium", "throwAccuracyDeep", "throwPower"], player.overall || 70)
     ) *
       0.46 +
     averageTopPlayers(
@@ -833,7 +833,7 @@ function computeSchemeFit(player, team) {
   const ratings = player?.ratings || {};
   if (player.position === "QB") {
     return clamp(
-      Math.round((ratings.throwAccuracy || 65) * 0.6 + (ratings.awareness || 65) * 0.3 + passRate * 30),
+      Math.round((ratings.throwAccuracyShort || ratings.throwAccuracy || 65) * 0.26 + (ratings.throwAccuracyMedium || ratings.throwAccuracy || 65) * 0.34 + (ratings.throwAccuracyDeep || ratings.throwAccuracy || 65) * 0.16 + (ratings.awareness || 65) * 0.14 + (ratings.throwPower || 65) * 0.1 + passRate * 22),
       45,
       99
     );
@@ -4621,3 +4621,4 @@ export class GameSession {
     };
   }
 }
+
