@@ -99,6 +99,13 @@ Build status:
   - contract salary/cap/guarantee context is visible directly in the hero grid
   - availability/injury status and latest-season production now sit in the summary area instead of requiring a scroll into the tables
   - the hero layout was tightened for mobile by reducing portrait height and stacking the meta grid more cleanly
+- The refreshed control language now reaches the highest-value management tabs too:
+  - the contracts tab now opens with a cap-command spotlight that summarizes selected-player leverage, cap posture, expiring deals, and tag/option signals
+  - the settings tab now has a commissioner-deck summary that surfaces save health, core rules toggles, persistence posture, and observability status
+  - owner controls now include an owner spotlight that summarizes mandate, economics, facilities, and weekly pressure before the raw owner table
+- Checkbox-heavy settings controls are less brittle and easier to scan now:
+  - commissioner toggles render in a card-style grid instead of a long inline row
+  - numeric settings render in a denser form grid, which reduces wrap chaos on smaller widths
 - Challenge enforcement now blocks user free-agent actions in `no-free-agency` mode and blocks trades that would deliver top-10 picks to the controlled team in `no-top-10-picks` mode
 - That enforcement now reaches the remaining obvious user acquisition paths too:
   - waiver claims are blocked in `no-free-agency`
@@ -142,9 +149,9 @@ Build status:
   - `npm.cmd run smoke:pages`
 
 Current priorities:
-1. Push the new overview/dashboard polish pass and verify `CI`, `Deploy Backend Runtime`, and `Deploy Pages`
-2. Review the refreshed overview/player-profile/box-score flows on mobile after the live deployment to catch any spacing or overflow issues
-3. Extend the refreshed UI language across any remaining legacy utility-style tabs such as contracts/owner/settings
+1. Push the contracts/settings/owner UI polish pass and verify `CI`, `Deploy Backend Runtime`, and `Deploy Pages`
+2. Review the refreshed overview/contracts/player-profile/settings flows on mobile after the live deployment to catch any spacing or overflow issues
+3. Extend the refreshed UI language across any remaining lower-priority legacy tabs instead of leaving the new control-deck treatment isolated to a few screens
 4. Use the new setup diagnostics to confirm whether any remaining setup/main-menu latency still needs another trim after the lazy browser bootstrap
 5. Decide whether the generated StatMuse 2025 baseline should become a first-class repo script instead of only an output artifact plus smoothed live constants
 

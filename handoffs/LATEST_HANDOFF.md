@@ -3,6 +3,17 @@
 Last updated: 2026-03-13
 
 What was completed:
+- Added the next management-surface UI pass:
+  - the contracts tab now opens with a cap-command hero that summarizes selected-player leverage, negotiation ask, cap posture, and risk signals
+  - the settings tab now opens with a commissioner-deck summary for saves, policy toggles, persistence, and runtime health
+  - owner controls now include an owner spotlight for mandate, economy, facilities, and weekly pressure instead of dropping users straight into the raw table
+- Reworked settings controls for scanability:
+  - commissioner checkboxes now render in a card-style toggle grid
+  - the numeric commissioner controls now use a denser form grid so smaller widths wrap more cleanly
+- Revalidated the contracts/settings/owner follow-up with:
+  - `node --check public/app.js`
+  - `npm.cmd test`
+  - `npm.cmd run build:pages`
 - Added a second UI-polish pass on top of the first branding refresh:
   - the overview tab now opens with a command-deck style franchise spotlight instead of separate plain control/summary panels
   - that spotlight surfaces controlled-team mandate, identity, primary roster need, and weekly plan context before the tables
@@ -171,15 +182,15 @@ What was completed:
   - `npm.cmd run smoke:pages`
 
 What is mid-flight:
-- The overview/dashboard/player-dossier follow-up polish is ready locally but still needs the commit/push/GitHub verification pass
+- The contracts/settings/owner follow-up polish is ready locally but still needs the commit/push/GitHub verification pass
 - The unrelated realism/runtime work is still parked in a local stash and has not been reincorporated
 - Challenge restrictions are much more mechanical now, though edge-case acquisition paths may still be worth auditing later
 - The broader 2025 baseline path currently lives as a generated output artifact plus smoothed live constants; it is not yet promoted to a dedicated checked-in builder script
 
 What to do next:
-1. Commit/push the overview/dashboard/player-dossier follow-up UI pass and confirm the next GitHub run stays green
-2. Review the live deploy on desktop/mobile to catch any overflow or spacing issues in the new overview spotlight, player hero, and sticky box score tabs
-3. Extend the refreshed UI language into any remaining high-value legacy management tabs such as contracts and owner controls
+1. Commit/push the contracts/settings/owner follow-up UI pass and confirm the next GitHub run stays green
+2. Review the live deploy on desktop/mobile to catch any overflow or spacing issues in the new contracts, settings, and owner spotlight layouts
+3. Extend the refreshed UI language into any remaining lower-priority legacy tabs so the shell feels consistent end to end
 4. Decide whether to promote the generated StatMuse baseline flow into a checked-in repo script instead of keeping it as an output artifact plus smoothed constants
 5. Use the new setup diagnostics to decide whether any remaining setup/main-menu latency still needs another trim after the lazy browser bootstrap
 

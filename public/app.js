@@ -1289,6 +1289,172 @@ function renderOverviewSpotlight() {
   }
 }
 
+function renderPulseChips(containerId, chips, emptyText) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  const filtered = (chips || []).filter(Boolean);
+  el.innerHTML = filtered.length
+    ? filtered.map((chip) => `<span class="control-pulse-chip">${escapeHtml(chip)}</span>`).join("")
+    : `<span class="control-pulse-chip">${escapeHtml(emptyText)}</span>`;
+}
+
+function renderContractsSpotlight() {
+  const spotlight = document.getElementById("contractsSpotlight");
+  if (!spotlight) return;
+  const teamId = state.contractTeamId || state.dashboard?.controlledTeamId || null;
+  const team = teamByCode(teamId) || null;
+  const selected = getSelectedContractPlayer();
+  const demand = selected ? state.negotiationTargets.find((entry) => entry.id === selected.id)?.demand || null : null;
+  const roster = state.contractRoster || [];
+  const expiring = state.contractTools?.expiring || [];
+  const cap = state.contractCap || {};
+  const blockCount = roster.filter((player) => state.tradeBlockIds.includes(player.id)).length;
+
+  spotlight.innerHTML = `
+    <div class="overview-team-mark">
+      <div class="overview-team-label">${escapeHtml(team?.name || teamId || "Contracts")}</div>
+      <div class="overview-team-meta">
+        ${escapeHtml(team?.abbrev || teamId || "-")} | ${escapeHtml(selected ? `Selected ${selected.name} (${selected.pos})` : `${roster.length} players on contract board`)}
+      </div>
+    </div>
+    <div class="control-spotlight-grid">
+      <div class="control-spotlight-card">
+        <strong>Selected Player</strong>
+        <div>${escapeHtml(selected ? `${selected.name} (${selected.pos})` : "No player selected")}</div>
+        <div class="small">${escapeHtml(selected ? `Cap ${fmtMoney(selected.contract?.capHit || 0)} | ${selected.contract?.yearsRemaining || 0} years left` : "Pick a row to stage negotiations, trade, or restructure")}</div>
+      </div>
+      <div class="control-spotlight-card">
+        <strong>Negotiation Ask</strong>
+        <div>${escapeHtml(demand ? `${demand.years}y / ${fmtMoney(demand.salary || 0)}` : "No active ask loaded")}</div>
+        <div class="small">${escapeHtml(demand ? `Ask cap ${fmtMoney(demand.askCapHit || 0)}` : "Load negotiations or select a player with leverage")}</div>
+      </div>
+      <div class="control-spotlight-card">
+        <strong>Cap Posture</strong>
+        <div>${escapeHtml(fmtMoney(cap.capSpace || 0))} space</div>
+        <div class="small">${escapeHtml(`${expiring.length} expiring | ${blockCount} on trade block`)}</div>
+      </div>
+      <div class="control-spotlight-card">
+        <strong>Risk Signal</strong>
+        <div>${escapeHtml((cap.deadCapCurrentYear || 0) > (cap.capSpace || 0) ? "Dead cap pressure is elevated" : "Cap sheet is manageable")}</div>
+        <div class="small">${escapeHtml(`Active cap ${fmtMoney(cap.activeCap || 0)} | Dead cap ${fmtMoney(cap.deadCapCurrentYear || 0)}`)}</div>
+      </div>
+    </div>
+  `;
+
+  renderPulseChips(
+    "contractsPulseBar",
+    [
+      selected ? `Morale ${selected.morale ?? "-"}` : null,
+      selected ? `Motivation ${selected.motivation ?? "-"}` : null,
+      selected && state.tradeBlockIds.includes(selected.id) ? "Trade block active" : null,
+      expiring.length ? `${expiring.length} expiring deals` : null,
+      state.contractTools?.tagEligible?.length ? `${state.contractTools.tagEligible.length} tag candidates` : null,
+      state.contractTools?.optionEligible?.length ? `${state.contractTools.optionEligible.length} option candidates` : null
+    ],
+    "Load a contract board to see cap and leverage signals"
+  );
+}
+
+function renderSettingsSpotlight() {
+  const spotlight = document.getElementById("settingsSpotlight");
+  if (!spotlight) return;
+  const settings = state.leagueSettings || state.dashboard?.settings || {};
+  const latestSave = state.saves?.[0] || null;
+  const persistence = state.persistence || {};
+  const runtimeCounters = Object.keys(state.observability?.runtime?.counters || {}).length;
+  const serverRequests = state.observability?.server?.requests ?? 0;
+
+  spotlight.innerHTML = `
+    <div class="overview-team-mark">
+      <div class="overview-team-label">League Control Room</div>
+      <div class="overview-team-meta">
+        ${escapeHtml(state.dashboard ? `${state.dashboard.currentYear} | ${state.dashboard.phase}` : "Waiting on league state")} | ${escapeHtml(settings.eraProfile || "modern")} era profile
+      </div>
+    </div>
+    <div class="control-spotlight-grid">
+      <div class="control-spotlight-card">
+        <strong>Saves</strong>
+        <div>${escapeHtml(`${state.saves?.length || 0} slots detected`)}</div>
+        <div class="small">${escapeHtml(latestSave ? `Latest ${latestSave.slot} @ ${new Date(latestSave.updatedAt).toLocaleString()}` : "No saved leagues found yet")}</div>
+      </div>
+      <div class="control-spotlight-card">
+        <strong>Commissioner Policy</strong>
+        <div>${escapeHtml(settings.enableOwnerMode !== false ? "Owner mode active" : "Commissioner-only mode")}</div>
+        <div class="small">${escapeHtml(`Injuries ${settings.allowInjuries !== false ? "on" : "off"} | Comp picks ${settings.enableCompPicks !== false ? "on" : "off"}`)}</div>
+      </div>
+      <div class="control-spotlight-card">
+        <strong>Persistence</strong>
+        <div>${escapeHtml(persistence.kind || "Unknown storage")}</div>
+        <div class="small">${escapeHtml(persistence.notes || "Load persistence info for adapter details")}</div>
+      </div>
+      <div class="control-spotlight-card">
+        <strong>Runtime Health</strong>
+        <div>${escapeHtml(`${serverRequests} server req | ${runtimeCounters} runtime counters`)}</div>
+        <div class="small">${escapeHtml(state.observability ? "Observability loaded" : "Load metrics to inspect runtime health")}</div>
+      </div>
+    </div>
+  `;
+
+  renderPulseChips(
+    "settingsPulseBar",
+    [
+      `Era ${settings.eraProfile || "modern"}`,
+      `Injuries ${settings.allowInjuries !== false ? "on" : "off"}`,
+      `Narratives ${settings.enableNarratives !== false ? "on" : "off"}`,
+      `Owner mode ${settings.enableOwnerMode !== false ? "on" : "off"}`,
+      `Chemistry ${settings.enableChemistry !== false ? "on" : "off"}`,
+      `Trade aggression ${settings.cpuTradeAggression ?? 0.5}`
+    ],
+    "Settings will appear here after the league config loads"
+  );
+}
+
+function renderOwnerSpotlight() {
+  const spotlight = document.getElementById("ownerSpotlight");
+  if (!spotlight) return;
+  const owner = state.ownerState?.owner;
+  if (!owner) {
+    spotlight.innerHTML = `<div class="small">Load an owner profile to review mandate, market pressure, and budget posture.</div>`;
+    return;
+  }
+  const culture = state.ownerState?.cultureProfile || {};
+  const scheme = state.ownerState?.schemeIdentity || {};
+  const weeklyPlan = state.ownerState?.weeklyPlan || {};
+  const expectation = owner.expectation || {};
+  const teamId = document.getElementById("ownerTeamSelect")?.value || state.dashboard?.controlledTeamId || "";
+  const team = teamByCode(teamId) || null;
+  spotlight.innerHTML = `
+    <div class="overview-team-mark">
+      <div class="overview-team-label">${escapeHtml(team?.name || teamId || "Owner")}</div>
+      <div class="overview-team-meta">
+        ${escapeHtml(owner.personality || "owner")} | market ${escapeHtml(owner.marketSize || "-")} | fan interest ${escapeHtml(owner.fanInterest ?? "-")}
+      </div>
+    </div>
+    <div class="control-spotlight-grid">
+      <div class="control-spotlight-card">
+        <strong>Mandate</strong>
+        <div>${escapeHtml(expectation.mandate || "Stabilize the club")}</div>
+        <div class="small">${escapeHtml(`Target ${expectation.targetWins ?? "-"} wins | Projected ${expectation.projectedWins ?? "-"}`)}</div>
+      </div>
+      <div class="control-spotlight-card">
+        <strong>Economics</strong>
+        <div>${escapeHtml(`${fmtMoney(owner.cash || 0)} cash | ${fmtMoney(owner.staffBudget || 0)} staff budget`)}</div>
+        <div class="small">${escapeHtml(`Ticket ${owner.ticketPrice ?? "-"} | Revenue YTD ${fmtMoney(owner.finances?.revenueYtd || 0)}`)}</div>
+      </div>
+      <div class="control-spotlight-card">
+        <strong>Facilities</strong>
+        <div>${escapeHtml(`Training ${owner.facilities?.training ?? "-"} | Rehab ${owner.facilities?.rehab ?? "-"} | Analytics ${owner.facilities?.analytics ?? "-"}`)}</div>
+        <div class="small">${escapeHtml(`${culture.identity || "Balanced"} culture | ${scheme.offense || "-"} / ${scheme.defense || "-"}`)}</div>
+      </div>
+      <div class="control-spotlight-card">
+        <strong>Weekly Pressure</strong>
+        <div>${escapeHtml(weeklyPlan.summary || "No weekly plan summary loaded")}</div>
+        <div class="small">${escapeHtml((expectation.reasons || []).join("; ") || "No pressure reasons flagged")}</div>
+      </div>
+    </div>
+  `;
+}
+
 function renderRosterNeeds() {
   const needs = (state.dashboard?.rosterNeeds || [])
     .slice()
@@ -1796,6 +1962,7 @@ function updateContractPreview() {
   if (!preview) return;
   if (!player) {
     preview.textContent = "Select a player row to stage a contract action or queue a trade package.";
+    renderContractsSpotlight();
     return;
   }
 
@@ -1805,6 +1972,7 @@ function updateContractPreview() {
     const resultingCap = capSpace + (tag.contract?.capHit || 0) - (tag.projectedCapHit || 0);
     preview.textContent =
       `Tag Preview: ${tag.name} (${tag.pos}) ${fmtMoney(tag.contract?.capHit || 0)} -> ${fmtMoney(tag.projectedCapHit || 0)} (${fmtDeltaMoney(tag.capDelta || 0)}). Remaining cap: ${fmtMoney(resultingCap)}.`;
+    renderContractsSpotlight();
     return;
   }
 
@@ -1812,12 +1980,14 @@ function updateContractPreview() {
     const resultingCap = capSpace + (option.contract?.capHit || 0) - (option.projectedCapHit || 0);
     preview.textContent =
       `Option Preview: ${option.name} (${option.pos}) ${fmtMoney(option.contract?.capHit || 0)} -> ${fmtMoney(option.projectedCapHit || 0)} (${fmtDeltaMoney(option.capDelta || 0)}). Remaining cap: ${fmtMoney(resultingCap)}.`;
+    renderContractsSpotlight();
     return;
   }
 
   preview.textContent =
     `${player.name} | Salary ${fmtMoney(player.contract?.salary || 0)} | Cap ${fmtMoney(player.contract?.capHit || 0)} | Years ${player.contract?.yearsRemaining || 0}` +
     (demand ? ` | Ask ${demand.years}y / ${fmtMoney(demand.salary || 0)}` : "");
+  renderContractsSpotlight();
 }
 
 function renderContractsPage() {
@@ -1885,6 +2055,7 @@ function renderContractsPage() {
   });
 
   updateContractPreview();
+  renderContractsSpotlight();
 }
 
 function setContractActionText(text) {
@@ -2768,6 +2939,7 @@ function renderOwner() {
   const owner = state.ownerState?.owner;
   if (!owner) {
     renderTable("ownerTable", []);
+    renderOwnerSpotlight();
     return;
   }
   const culture = state.ownerState?.cultureProfile || {};
@@ -2806,12 +2978,14 @@ function renderOwner() {
       warning: weeklyPlan.warning || "-"
     }
   ]);
+  renderOwnerSpotlight();
 }
 
 function renderObservability() {
   const obs = state.observability;
   if (!obs) {
     renderTable("observabilityTable", []);
+    renderSettingsSpotlight();
     return;
   }
   const rows = [
@@ -2821,12 +2995,14 @@ function renderObservability() {
     { metric: "runtimeCounters", value: Object.keys(obs.runtime?.counters || {}).length }
   ];
   renderTable("observabilityTable", rows);
+  renderSettingsSpotlight();
 }
 
 function renderPersistence() {
   const p = state.persistence;
   if (!p) {
     renderTable("persistenceTable", []);
+    renderSettingsSpotlight();
     return;
   }
   renderTable("persistenceTable", [
@@ -2836,6 +3012,7 @@ function renderPersistence() {
       notes: p.notes
     }
   ]);
+  renderSettingsSpotlight();
 }
 
 function renderPipeline() {
@@ -3010,6 +3187,7 @@ function applySettingsControls() {
   document.getElementById("settingCapGrowth").value = settings.capGrowthRate ?? 0.045;
   document.getElementById("settingTradeAggression").value = settings.cpuTradeAggression ?? 0.5;
   document.getElementById("settingRetirementMinWinPct").value = settings.retirementOverrideMinWinningPct ?? 0.55;
+  renderSettingsSpotlight();
 }
 
 async function loadPlayerModal(playerId) {
@@ -3652,6 +3830,7 @@ async function loadSaves() {
     ? state.saves.map((slot) => `${slot.slot} (${new Date(slot.updatedAt).toLocaleString()})`).join(" | ")
     : "No save slots yet.";
   document.getElementById("saveListText").textContent = text;
+  renderSettingsSpotlight();
 }
 
 async function loadQa() {
