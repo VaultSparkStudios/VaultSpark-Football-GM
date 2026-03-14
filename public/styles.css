@@ -990,6 +990,33 @@ th {
   background: rgba(10, 16, 18, 0.46);
 }
 
+.history-data-drawer {
+  margin-top: 0.8rem;
+  border: 1px solid rgba(61, 87, 85, 0.46);
+  border-radius: 16px;
+  background: rgba(9, 15, 17, 0.62);
+  overflow: hidden;
+}
+
+.history-data-drawer summary {
+  cursor: pointer;
+  padding: 0.78rem 0.9rem;
+  color: var(--ink-strong);
+  font-family: "Rockwell", "Bahnschrift SemiCondensed", serif;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: linear-gradient(180deg, rgba(18, 27, 31, 0.94), rgba(12, 18, 21, 0.92));
+  border-bottom: 1px solid rgba(61, 87, 85, 0.3);
+}
+
+.history-data-drawer[open] summary {
+  color: var(--accent-strong);
+}
+
+.history-data-drawer .table-wrap {
+  margin: 0.85rem;
+}
+
 @keyframes pulse {
   0% { background-position: 0 0; }
   100% { background-position: -200% 0; }

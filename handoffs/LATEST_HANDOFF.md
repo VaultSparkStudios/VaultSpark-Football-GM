@@ -34,6 +34,9 @@ What was completed:
   - the selected award year now opens with a showcase spotlight covering MVP standard, Super Bowl MVP/pivotal moment, and All-Pro depth
   - headline winners now render as award cards, and All-Pro / Pro Bowl rosters now render as honor galleries ahead of the existing tables
   - the raw awards tables remain for dense lookup, but the default read path is now visual first
+- Reduced duplication inside the Season Awards archive:
+  - annual winner/champion tables and detailed award lookup tables now live inside archive drawers instead of always rendering inline
+  - this keeps the dense data accessible while making the card/gallery presentation the clear primary path
 - Hardened the Playwright setup helper:
   - increased the create-league redirect wait from `25s` to `45s` in `tests-ui/app.spec.js` after a local setup-navigation flake hit the first UI test
   - this was a test-stability change only; no product logic changed

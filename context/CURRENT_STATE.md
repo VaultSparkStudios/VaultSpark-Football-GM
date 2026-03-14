@@ -115,6 +115,7 @@ Build status:
   - the Hall of Fame and retired-number areas now render as spotlight/card galleries instead of only raw tables, with direct legend selection from Hall of Fame cards and a clearer franchise-legacy summary for the selected team
   - the player-history side of the History tab now has a career-archive spotlight and season cards, so loaded player timelines read like resumés instead of only a search table plus raw stat rows
   - the Season Awards side now has an award-year showcase with winner cards plus All-Pro and Pro Bowl galleries, so that archive no longer feels like a stack of raw tables
+  - the duplicate-heavy Season Awards raw tables are now tucked behind lookup drawers, keeping dense archive access without forcing users to scroll through the same information twice
   - the Playwright setup helper now allows a wider create-league redirect window, which removed a recurrent borderline timeout during UI runs without changing product behavior
 - Season wrap/history is now deeper and more explicit:
   - the yearly flow now pauses on a dedicated `season-awards` phase between the Super Bowl and offseason pipeline
