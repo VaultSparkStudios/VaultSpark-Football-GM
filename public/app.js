@@ -65,6 +65,7 @@ const state = {
   historyView: "season-awards",
   selectedAwardsYear: null,
   teamHistory: null,
+  historyTimeline: null,
   historyPlayerSearchResults: [],
   selectedHistoryPlayerId: null,
   statsHiddenColumns: [],
@@ -2773,6 +2774,109 @@ function awardCountLine(awardCounts = {}) {
   return pairs.length ? pairs.map(([label, value]) => `${label} ${value}`).join(" | ") : "No major awards logged";
 }
 
+function timelineEntrySummary(entry, position) {
+  const stats = entry?.stats || {};
+  if (position === "QB") {
+    return `${stats.passing?.yards || 0} pass yds, ${stats.passing?.td || 0} TD, ${stats.passing?.int || 0} INT`;
+  }
+  if (position === "RB") {
+    return `${stats.rushing?.yards || 0} rush yds, ${stats.rushing?.td || 0} rush TD, ${stats.receiving?.yards || 0} rec yds`;
+  }
+  if (position === "WR" || position === "TE") {
+    return `${stats.receiving?.rec || 0} rec, ${stats.receiving?.yards || 0} yds, ${stats.receiving?.td || 0} TD`;
+  }
+  if (position === "K") {
+    return `${stats.kicking?.fgm || 0}/${stats.kicking?.fga || 0} FG, ${stats.kicking?.xpm || 0}/${stats.kicking?.xpa || 0} XP`;
+  }
+  if (position === "P") {
+    return `${stats.punting?.punts || 0} punts, ${stats.punting?.in20 || 0} in20`;
+  }
+  if (position === "OL") {
+    return `${stats.gamesStarted || 0} starts in ${stats.games || 0} games`;
+  }
+  return `${stats.defense?.tackles || 0} tackles, ${stats.defense?.sacks || 0} sacks, ${stats.defense?.int || 0} INT`;
+}
+
+function renderPlayerHistoryArchive(payload = null) {
+  const spotlight = document.getElementById("playerHistorySpotlight");
+  const gallery = document.getElementById("playerTimelineGallery");
+  const selected = (state.historyPlayerSearchResults || []).find((player) => player.id === state.selectedHistoryPlayerId) || null;
+  if (!payload?.timeline?.length) {
+    if (spotlight) {
+      spotlight.innerHTML = `
+        <div class="history-spotlight-mark">
+          <div class="history-spotlight-label">${escapeHtml(selected?.name || "Player Archive")}</div>
+          <div class="history-spotlight-meta">${escapeHtml(selected ? `${selected.pos} | ${teamCode(selected.teamId)} | OVR ${selected.overall || "-"}` : "Search for a player, then load their history to review seasons, titles, and awards.")}</div>
+        </div>
+        <div class="history-spotlight-grid">
+          <div class="history-spotlight-card">
+            <strong>Archive Status</strong>
+            <div>${escapeHtml(selected ? "Player selected" : "No player selected")}</div>
+            <div class="small">${escapeHtml(selected ? "Use Load Player History to open the full career archive." : "The archive populates after a player is selected.")}</div>
+          </div>
+        </div>
+      `;
+    }
+    if (gallery) gallery.innerHTML = `<div class="history-empty">No player history loaded yet.</div>`;
+    return;
+  }
+
+  const timeline = payload.timeline || [];
+  const latest = timeline[timeline.length - 1] || null;
+  const titles = timeline.filter((entry) => entry.champion).length;
+  const totalAwards = timeline.reduce((sum, entry) => sum + ((entry.awards || []).length), 0);
+  const teams = [...new Set(timeline.map((entry) => entry.teamId).filter(Boolean))];
+  const position = payload.pos;
+  if (spotlight) {
+    spotlight.innerHTML = `
+      <div class="history-spotlight-mark">
+        <div class="history-spotlight-label">${escapeHtml(payload.player || "Player Archive")}</div>
+        <div class="history-spotlight-meta">${escapeHtml(payload.pos || "-")} | ${escapeHtml(payload.status || "retired")} | ${escapeHtml(timeline.length)} seasons | ${escapeHtml(teams.join(", ") || "No teams logged")}</div>
+      </div>
+      <div class="history-spotlight-grid">
+        <div class="history-spotlight-card">
+          <strong>Career Snapshot</strong>
+          <div>${escapeHtml(latest ? timelineEntrySummary(latest, position) : "No recorded season")}</div>
+          <div class="small">${escapeHtml(latest ? `${latest.year} latest season | ${teamCode(latest.teamId)}` : "Load a player with recorded seasons")}</div>
+        </div>
+        <div class="history-spotlight-card">
+          <strong>Honors</strong>
+          <div>${escapeHtml(`${titles} titles | ${totalAwards} award hits`)}</div>
+          <div class="small">${escapeHtml(latest?.awards?.length ? latest.awards.join(", ") : "Latest season had no listed awards")}</div>
+        </div>
+        <div class="history-spotlight-card">
+          <strong>Career Span</strong>
+          <div>${escapeHtml(`${timeline[0]?.year || "-"} to ${latest?.year || "-"}`)}</div>
+          <div class="small">${escapeHtml(teams.length ? `${teams.length} franchise${teams.length === 1 ? "" : "s"}` : "No franchise history logged")}</div>
+        </div>
+      </div>
+    `;
+  }
+  if (!gallery) return;
+  gallery.innerHTML = timeline.slice().reverse().map((entry) => `
+    <article class="history-card">
+      <div class="history-card-top">
+        <div class="history-card-title">
+          <strong>${escapeHtml(String(entry.year))}</strong>
+          <div class="history-card-meta">${escapeHtml(teamCode(entry.teamId))} | ${escapeHtml(entry.pos || position || "-")} | ${escapeHtml(entry.champion ? "Champion season" : "Season record")}</div>
+        </div>
+        <div class="history-number-plate">${escapeHtml(teamCode(entry.teamId))}</div>
+      </div>
+      <div class="history-card-grid">
+        <div class="history-card-stat"><strong>Games</strong><div>${escapeHtml(entry.stats?.games || 0)}</div></div>
+        <div class="history-card-stat"><strong>Starts</strong><div>${escapeHtml(entry.stats?.gamesStarted || 0)}</div></div>
+        <div class="history-card-stat"><strong>Summary</strong><div>${escapeHtml(timelineEntrySummary(entry, position))}</div></div>
+        <div class="history-card-stat"><strong>Awards</strong><div>${escapeHtml((entry.awards || []).length || 0)}</div></div>
+      </div>
+      <div class="history-chip-row">
+        ${(entry.awards || []).length
+          ? entry.awards.map((award) => `<span class="history-chip">${escapeHtml(award)}</span>`).join("")
+          : `<span class="history-chip">No awards</span>`}
+      </div>
+    </article>
+  `).join("");
+}
+
 function renderHistorySpotlight() {
   const awards = state.dashboard?.awards || [];
   const hall = state.dashboard?.hallOfFame || [];
@@ -2956,6 +3060,7 @@ function renderRecordsAndHistory() {
   const awardYears = awards.map((award) => String(award.year));
   renderHistorySpotlight();
   renderTeamHistorySpotlight(state.teamHistory);
+  renderPlayerHistoryArchive(state.historyTimeline);
 
   if (!records) {
     box.innerHTML = "<div class='record'>No record data</div>";
@@ -4198,8 +4303,12 @@ async function loadPlayerTimeline() {
   const playerId = state.selectedHistoryPlayerId;
   if (!playerId) return;
   const payload = await api(`/api/history/player?playerId=${encodeURIComponent(playerId)}`);
+  state.historyTimeline = payload.timeline || null;
   const rows = (payload.timeline?.timeline || []).map((entry) => ({
     year: entry.year,
+    tm: teamCode(entry.teamId),
+    champion: entry.champion ? "Yes" : "",
+    awards: (entry.awards || []).join(", "),
     passYds: entry.stats?.passing?.yards || 0,
     passTd: entry.stats?.passing?.td || 0,
     rushYds: entry.stats?.rushing?.yards || 0,
@@ -4210,11 +4319,17 @@ async function loadPlayerTimeline() {
     sacks: entry.stats?.defense?.sacks || 0,
     ints: entry.stats?.defense?.int || 0
   }));
+  renderPlayerHistoryArchive(payload.timeline || null);
   renderTable("playerTimelineTable", rows);
 }
 
 function setSelectedHistoryPlayer(player = null) {
+  const changedSelection = state.selectedHistoryPlayerId !== (player?.id || null);
   state.selectedHistoryPlayerId = player?.id || null;
+  if (!player || changedSelection) {
+    state.historyTimeline = null;
+    renderTable("playerTimelineTable", []);
+  }
   const label = document.getElementById("playerTimelineSelectedPlayerText");
   if (label) {
     label.textContent = player ? `Selected: ${player.name} (${player.pos})` : "Selected: None";
@@ -4223,6 +4338,7 @@ function setSelectedHistoryPlayer(player = null) {
   if (button) button.disabled = !player;
   const retireButton = document.getElementById("retireSelectedJerseyBtn");
   if (retireButton) retireButton.disabled = !player;
+  renderPlayerHistoryArchive(state.historyTimeline);
 }
 
 async function retireSelectedJersey() {

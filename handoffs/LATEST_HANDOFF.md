@@ -26,6 +26,10 @@ What was completed:
   - the History tab now opens with a legacy-archive spotlight that summarizes hall count, retired numbers, award-year coverage, and the latest champion
   - Hall of Fame rows were upgraded into selectable resume cards with jersey-number plates, award chips, title/AV/legacy stats, and direct player-selection actions
   - team history now has a franchise-legacy spotlight plus retired-number cards instead of only raw tables
+- Polished the player-history side of the same tab:
+  - loaded player timelines now render a career-archive spotlight with team span, latest-season snapshot, title count, and award density
+  - season-by-season history now appears as archive cards ahead of the raw timeline table, so the user can scan a career path without parsing columns first
+  - selecting a different player now clears the previously loaded archive immediately instead of leaving stale career data in view until reload
 - Tightened the AV implementation closer to PFR's published methodology:
   - offensive AV now uses team points-per-drive buckets for rushers, passers, and receivers instead of a generic yardage heuristic
   - defensive AV now uses front-seven vs secondary pools with starts/tackles/sack/turnover weighting closer to the published PFR split
