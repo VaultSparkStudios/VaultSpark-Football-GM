@@ -13,12 +13,28 @@ async function waitGameReady(page) {
   await expect(page.locator("#statusChip")).toContainText("Ready", { timeout: 25_000 });
 }
 
-async function createLeagueFromSetup(page) {
+async function createLeagueFromSetup(page, { runtimeMode = null } = {}) {
   await page.goto("/");
   await waitSetupReady(page);
+  if (runtimeMode) {
+    await page.selectOption("#runtimeModeSelect", runtimeMode);
+    await waitSetupReady(page);
+    await expect(page.locator("#runtimeModeSelect")).toHaveValue(runtimeMode);
+  }
   await page.click("#createLeagueBtn");
   await expect(page).toHaveURL(/\/game\.html$/, { timeout: 45_000 });
   await waitGameReady(page);
+}
+
+async function simulateSeasonsByApi(page, count) {
+  return page.evaluate(async (seasonCount) => {
+    const response = await fetch("/api/advance-season", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ count: seasonCount })
+    });
+    return response.json();
+  }, count);
 }
 
 async function firstTableCell(page, selector, columnIndex = 1) {
@@ -214,6 +230,70 @@ test("compare and player history flows use search-driven selection", async ({ pa
   await page.click("#loadPlayerTimelineBtn");
   await waitGameReady(page);
   await expect(page.locator("#playerTimelineTable")).toContainText(/No data|No rows|year/i);
+});
+
+test("season awards and hall of fame history render for a populated multi-year league", async ({ page }) => {
+  test.setTimeout(240_000);
+
+  await createLeagueFromSetup(page, { runtimeMode: "server" });
+  const seeded = await simulateSeasonsByApi(page, 2);
+  const dashboard = seeded?.state || {};
+  expect(dashboard.currentYear).toBeGreaterThanOrEqual(2028);
+  expect((dashboard.awards || []).length).toBeGreaterThanOrEqual(2);
+  expect((dashboard.hallOfFame || []).length).toBeGreaterThan(0);
+  const controlledTeamId = dashboard.controlledTeamId || "OS";
+  const rosterPayload = await page.evaluate(async (teamId) => {
+    const response = await fetch(`/api/roster?team=${encodeURIComponent(teamId)}`);
+    return response.json();
+  }, controlledTeamId);
+  const retirementCandidate =
+    (rosterPayload.roster || []).find((player) => Number.isFinite(player.jerseyNumber)) || rosterPayload.roster?.[0] || null;
+  expect(retirementCandidate?.id).toBeTruthy();
+  expect(retirementCandidate?.name).toBeTruthy();
+  await page.reload();
+  await waitGameReady(page);
+  await page.click('[data-testid="tab-history"]');
+
+  expect(await page.locator("#historyAwardYearSelect option").count()).toBeGreaterThanOrEqual((dashboard.awards || []).length);
+  await expect(page.locator("#seasonAwardsSpotlight")).toContainText("Awards Class");
+  await expect(page.locator("#awardWinnerGallery .history-card").first()).toBeVisible();
+  await expect(page.locator("#allPro1Gallery .history-card").first()).toBeVisible();
+
+  await page.click('[data-history-view="hall-of-fame"]');
+  await expect(page.locator("#hallOfFameGallery .history-card").first()).toBeVisible();
+
+  await page.fill("#playerTimelineSearchInput", retirementCandidate.name);
+  await page.click("#searchPlayerTimelineBtn");
+  await waitGameReady(page);
+  const candidateSelect = page.locator(`[data-history-player-select="${retirementCandidate.id}"]`);
+  if (await candidateSelect.count()) {
+    await candidateSelect.first().click();
+  } else {
+    await page.locator("#playerTimelineSearchTable [data-history-player-select]").first().click();
+  }
+  await expect(page.locator("#playerTimelineSelectedPlayerText")).toContainText(retirementCandidate.name);
+
+  await page.click("#loadPlayerTimelineBtn");
+  await waitGameReady(page);
+  await expect(page.locator("#playerTimelineGallery .history-card").first()).toBeVisible();
+  await expect(page.locator("#playerTimelineTable tr").nth(1)).toBeVisible();
+
+  await page.evaluate((teamId) => {
+    const select = document.getElementById("teamHistorySelect");
+    if (!select) throw new Error("teamHistorySelect not found");
+    select.value = teamId;
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+  }, controlledTeamId);
+  await page.click("#loadTeamHistoryBtn");
+  await waitGameReady(page);
+  await expect(page.locator("#teamHistorySpotlight")).toBeVisible();
+
+  await page.click("#retireSelectedJerseyBtn");
+  await waitGameReady(page);
+  await expect(page.locator("#retiredNumbersGallery")).toContainText(retirementCandidate.name);
+  if (Number.isFinite(retirementCandidate.jerseyNumber)) {
+    await expect(page.locator("#retiredNumbersGallery")).toContainText(`#${retirementCandidate.jerseyNumber}`);
+  }
 });
 
 test("scouting lock persists across save and load", async ({ page }) => {

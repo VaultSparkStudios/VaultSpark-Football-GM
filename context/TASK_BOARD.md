@@ -2,6 +2,7 @@
 
 ## Now
 - Check the live/mobile behavior of the `Season Awards` / `Hall of Fame` split, retired-number controls, player dossier hero, and newer contracts/settings/owner command-deck surfaces
+- Use the seeded Playwright history regression as the baseline while continuing the manual populated-league review, especially for mobile layout and any states not covered by the server-backed test path
 - Decide whether the player-history archive cards should stay paired with the raw timeline/search tables or whether one of those legacy tables can be reduced further
 - Decide whether the remaining History lookup drawers should stay collapsible or whether some of that raw-table access belongs in export/admin views later
 - Sanity-check the 18-week / one-bye schedule structure across a few seeded leagues after deploy, not just the regression seed

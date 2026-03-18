@@ -119,6 +119,9 @@ Build status:
   - the Season Awards side now has an award-year showcase with winner cards plus All-Pro and Pro Bowl galleries, so that archive no longer feels like a stack of raw tables
   - the duplicate-heavy Season Awards raw tables are now tucked behind lookup drawers, keeping dense archive access without forcing users to scroll through the same information twice
   - the Playwright setup helper now allows a wider create-league redirect window, which removed a recurrent borderline timeout during UI runs without changing product behavior
+- Playwright UI coverage now includes a seeded server-backed multi-year history regression:
+  - the test forces `server` runtime from setup, seeds two seasons quickly through `POST /api/advance-season`, reloads into the populated league, and verifies the `Season Awards` showcase plus `Hall of Fame` gallery surfaces render with non-empty archive data
+  - the same regression then searches for a controlled-team roster player in `History`, loads that player timeline, loads the controlled-team legacy panel, and exercises the jersey-retirement action end to end without relying on imported real-NFL Hall of Fame entries
 - Season wrap/history is now deeper and more explicit:
   - the yearly flow now pauses on a dedicated `season-awards` phase between the Super Bowl and offseason pipeline
   - award history now stores richer categories including `ROY`, `CPOY`, `MostImproved`, `AllPro1/2/3`, `ProBowl`, and a Super Bowl summary with MVP/pivotal moment
@@ -172,6 +175,8 @@ Build status:
   - `node --test --test-isolation=none test/realism-career-regression.test.js`
   - `node --test --test-isolation=none test/stats-regression.test.js test/realism-career-regression.test.js`
   - `npm.cmd run smoke:pages`
+  - `node --check tests-ui/app.spec.js`
+  - `npm.cmd run test:ui -- --grep "season awards and hall of fame history render for a populated multi-year league" --reporter=dot`
 
 Current priorities:
 1. Review the `Season Awards` / `Hall of Fame` split, retired-number controls, and dossier/control-deck layouts on mobile plus a populated multi-year league
