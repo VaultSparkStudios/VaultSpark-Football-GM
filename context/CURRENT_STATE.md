@@ -1,6 +1,7 @@
 # Current State
 
 Build status:
+- Repo memory was refreshed on 2026-03-18; no additional unstaged tracked product diff was detected during closeout, and the latest committed change remains the 2026-03-13 history-table reduction pass
 - Direct GitHub Pages deployment from this repo remains the canonical frontend publish path
 - Backend scaffold remains separate under `deploy-backend.yml`, `Dockerfile.runtime`, and `ops/`
 - The game shell now marks itself ready after loading core dashboard state, then hydrates heavier panels in the background so `Play` mode no longer appears stuck on `Loading...` after league creation
@@ -172,11 +173,11 @@ Build status:
   - `npm.cmd run smoke:pages`
 
 Current priorities:
-1. Verify the next push keeps `CI`, `Deploy Backend Runtime`, and `Deploy Pages` green after the awards/history/schedule batch
-2. Review the new `Season Awards` / `Hall of Fame` history split and retired-number UX on mobile and on a populated multi-year league
-3. Decide whether the hall-of-fame induction threshold and retired-number workflow need more commissioner controls or auto-ceremony surfacing
-4. Extend the refreshed UI language across any remaining lower-priority legacy tabs instead of leaving the new control-deck treatment isolated to a few screens
-5. Use the new setup diagnostics to confirm whether any remaining setup/main-menu latency still needs another trim after the lazy browser bootstrap
+1. Push/verify the current `main` branch and confirm `CI`, `Deploy Backend Runtime`, and `Deploy Pages` stay green after the awards/history/schedule/history-UX batch
+2. Review the `Season Awards` / `Hall of Fame` split, retired-number controls, and dossier/control-deck layouts on mobile plus a populated multi-year league
+3. Decide whether the hall-of-fame induction threshold and retired-number workflow need commissioner settings, extra guardrails, or ceremony surfacing
+4. Extend the refreshed UI language across any remaining lower-priority legacy tabs so the newer command-deck treatment is not isolated
+5. Use the preserved setup diagnostics to decide whether another setup/main-menu latency trim is warranted before starting a new feature area
 
 Known issues:
 - The Pages artifact remains client-only unless `GAME_SERVICE_ORIGIN` or `API_DOMAIN` is configured and the separate backend/runtime rollout is live

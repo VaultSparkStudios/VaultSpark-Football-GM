@@ -1,12 +1,12 @@
 # Task Board
 
 ## Now
-- Verify the next GitHub push clears `CI`, `Deploy Backend Runtime`, and `Deploy Pages` after the awards/history/schedule pass
-- Check the live/mobile behavior of the new `Season Awards` / `Hall of Fame` history split, retired-number controls, and updated player dossier hero
-- Decide whether the player-history archive cards should remain paired with the raw timeline/search tables or whether one of those legacy tables can be reduced further
-- Decide whether the remaining lookup drawers in History should stay collapsible or whether some of that raw-table access can move to explicit export/admin views later
-- Sanity-check the new 18-week / one-bye schedule structure across a few seeded leagues after deploy, not just the regression seed
-- Validate whether any remaining setup/main-menu latency still needs another trim after the new lazy browser bootstrap
+- Push the current `main` state and verify `CI`, `Deploy Backend Runtime`, and `Deploy Pages` stay green
+- Check the live/mobile behavior of the `Season Awards` / `Hall of Fame` split, retired-number controls, player dossier hero, and newer contracts/settings/owner command-deck surfaces
+- Decide whether the player-history archive cards should stay paired with the raw timeline/search tables or whether one of those legacy tables can be reduced further
+- Decide whether the remaining History lookup drawers should stay collapsible or whether some of that raw-table access belongs in export/admin views later
+- Sanity-check the 18-week / one-bye schedule structure across a few seeded leagues after deploy, not just the regression seed
+- Read the preserved setup diagnostics and decide whether another setup/main-menu trim is still justified
 - Feed the new world-state deeper into any remaining owner expectation loops and transaction AI edges
 - Decide whether to promote the generated `output/statmuse-2025-baseline.json` flow into a first-class repo script instead of keeping the live profile refresh as a documented/manual smoothing step
 - Extend the refreshed UI language across any remaining legacy panels that still look like pre-refresh utility screens
@@ -22,7 +22,6 @@
 - Use the new setup diagnostics to decide whether any remaining setup cost is now dominated by save listing, backup listing, or client-side render work
 - Add UI hints for weekly plan/scouting-fit outputs where they matter most beyond the new overview/scouting summaries
 - Add setup/settings UI hints for the challenge-rule failures that now have frontend error formatting
-- Consider a visible "starter-qualified baseline" stats summary so NFL-average comparisons are clearer by position
 - Decide whether to add more formal Hall-of-Fame / jersey-retirement commissioner controls beyond the new history action
 - Decide whether to restore the parked realism/runtime stash onto a separate branch or continue keeping it isolated
 - Add more targeted startup observability only if the new setup diagnostics still leave startup bottlenecks unclear
