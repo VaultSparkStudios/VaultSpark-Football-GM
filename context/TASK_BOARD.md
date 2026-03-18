@@ -1,7 +1,6 @@
 # Task Board
 
 ## Now
-- Push the current `main` state and verify `CI`, `Deploy Backend Runtime`, and `Deploy Pages` stay green
 - Check the live/mobile behavior of the `Season Awards` / `Hall of Fame` split, retired-number controls, player dossier hero, and newer contracts/settings/owner command-deck surfaces
 - Decide whether the player-history archive cards should stay paired with the raw timeline/search tables or whether one of those legacy tables can be reduced further
 - Decide whether the remaining History lookup drawers should stay collapsible or whether some of that raw-table access belongs in export/admin views later

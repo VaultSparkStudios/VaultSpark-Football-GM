@@ -1,6 +1,7 @@
 # Current State
 
 Build status:
+- Closeout commit `3ed91c8` (`Refresh project memory closeout`) was pushed to `main` on 2026-03-18; GitHub `CI` run `#55` finished green, and `Deploy Pages` / `Deploy Backend Runtime` were correctly skipped because the commit touched only repo-memory files outside their `push.paths` filters
 - Repo memory was refreshed on 2026-03-18; no additional unstaged tracked product diff was detected during closeout, and the latest committed change remains the 2026-03-13 history-table reduction pass
 - Direct GitHub Pages deployment from this repo remains the canonical frontend publish path
 - Backend scaffold remains separate under `deploy-backend.yml`, `Dockerfile.runtime`, and `ops/`
@@ -173,11 +174,11 @@ Build status:
   - `npm.cmd run smoke:pages`
 
 Current priorities:
-1. Push/verify the current `main` branch and confirm `CI`, `Deploy Backend Runtime`, and `Deploy Pages` stay green after the awards/history/schedule/history-UX batch
-2. Review the `Season Awards` / `Hall of Fame` split, retired-number controls, and dossier/control-deck layouts on mobile plus a populated multi-year league
-3. Decide whether the hall-of-fame induction threshold and retired-number workflow need commissioner settings, extra guardrails, or ceremony surfacing
-4. Extend the refreshed UI language across any remaining lower-priority legacy tabs so the newer command-deck treatment is not isolated
-5. Use the preserved setup diagnostics to decide whether another setup/main-menu latency trim is warranted before starting a new feature area
+1. Review the `Season Awards` / `Hall of Fame` split, retired-number controls, and dossier/control-deck layouts on mobile plus a populated multi-year league
+2. Decide whether the hall-of-fame induction threshold and retired-number workflow need commissioner settings, extra guardrails, or ceremony surfacing
+3. Extend the refreshed UI language across any remaining lower-priority legacy tabs so the newer command-deck treatment is not isolated
+4. Use the preserved setup diagnostics to decide whether another setup/main-menu latency trim is warranted before starting a new feature area
+5. Feed the newer world-state deeper into any remaining owner expectation loops and transaction AI edges after the UX review pass
 
 Known issues:
 - The Pages artifact remains client-only unless `GAME_SERVICE_ORIGIN` or `API_DOMAIN` is configured and the separate backend/runtime rollout is live
